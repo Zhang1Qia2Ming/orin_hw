@@ -1,0 +1,9 @@
+<library path="usb_camera_hardware">
+  <class name="usb_camera_hardware/UsbCameraHardware"
+         type="usb_camera_hardware::UsbCameraHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface.
+    </description>
+  </class>
+</library>
