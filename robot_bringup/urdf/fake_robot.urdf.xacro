@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fake_robot">
+
+  <!-- ================= -->
+  <!-- 可通过 launch 设置的参数 -->
+  <!-- ================= -->
+  <xacro:arg name="prefix" default=""/>
+  <xacro:arg name="use_mock_hardware" default="false"/>
+  <xacro:arg name="mock_sensor_commands" default="false"/>
+  <xacro:arg name="slowdown" default="50.0"/>
+
+  <!-- ================= -->
+  <!-- Links -->
+  <!-- ================= -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.2 0.2 0.05"/>
+      </geometry>
+      <material name="gray">
+        <color rgba="0.6 0.6 0.6 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="link1">
+    <visual>
+      <geometry>
+        <box size="0.1 0.1 0.4"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0.2 0.2 0.8 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <link name="link2">
+    <visual>
+      <geometry>
+        <box size="0.1 0.1 0.3"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0.2 0.8 0.2 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <!-- ================= -->
+  <!-- Joints -->
+  <!-- ================= -->
+  <joint name="joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link1"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="1.0"/>
+  </joint>
+
+  <joint name="joint2" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="10" velocity="1.0"/>
+  </joint>
+
+  <!-- =============================== -->
+  <!-- ros2_control -->
+  <!-- =============================== -->
+  <!-- <ros2_control name="fake_hw_interface::FakeSystem" type="system"> -->
+    <!-- <hardware>
+      <plugin>fake_hw_interface/FakeSystem</plugin>
+      <param name="use_mock_hardware" value="$(arg use_mock_hardware)"/>
+      <param name="mock_sensor_commands" value="$(arg mock_sensor_commands)"/>
+      <param name="slowdown" value="$(arg slowdown)"/>
+    </hardware> -->
+	
+  <!-- <joint name="joint1">
+    <command_interface name="position"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+  </joint>
+  
+  <joint name="joint2">
+    <command_interface name="position"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+  </joint>
+  
+  <joint name="joint3">
+    <command_interface name="position"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+  </joint> -->
+  
+  <!-- </ros2_control> -->
+  
+  <ros2_control name="OrinPerceptionSystem" type="system">
+  <hardware>
+    <plugin>perception_hardware/PerceptionSystem</plugin>
+  </hardware>
+
+  <sensor name="camera_front">
+    <param name="device_type">mock_camera</param>
+    <param name="video_device">/dev/video0</param>
+    <param name="image_width">640</param>
+    <param name="image_height">480</param>
+    <param name="framerate">60.0</param>
+    <param name="pixel_format">mjpeg</param>
+    <param name="camera_frame_id">camera_link</param>
+    <param name="output_mode">screen</param>
+    <param name="fx">500.0</param><param name="fy">500.0</param>
+    <param name="cx">320.0</param><param name="cy">240.0</param>
+    
+    <state_interface name="data_ptr"/>
+  </sensor>
+
+  <sensor name="t265_front">
+    <param name="device_type">t265_camera</param>
+    <param name="serial_no">224622110353</param>
+    <param name="usb_port_id">4-1</param>
+    <param name="wait_for_device_timeout">-1.0</param>
+    <param name="reconnect_timeout">6.0</param>
+    <param name="initial_reset">true</param>
+
+    <state_interface name="data_ptr"/>
+  </sensor>
+
+
+  <!-- <sensor name="camera_left">
+    <param name="device_type">mock_camera</param>
+    <param name="video_device">/dev/video0</param>
+    <param name="image_width">640</param>
+    <param name="image_height">480</param>
+    <param name="framerate">30.0</param>
+    <param name="pixel_format">mjpeg</param>
+    <param name="camera_frame_id">camera_link</param>
+    <param name="output_mode">screen</param>
+    <param name="fx">500.0</param><param name="fy">500.0</param>
+    <param name="cx">320.0</param><param name="cy">240.0</param>
+    
+    <state_interface name="data_ptr"/>
+  </sensor> -->
+
+  <!-- <sensor name="camera_right">
+    <param name="device_type">mock_camera</param>
+    <param name="video_device">/dev/video0</param>
+    <param name="image_width">640</param>
+    <param name="image_height">480</param>
+    <param name="framerate">30.0</param>
+    <param name="pixel_format">mjpeg</param>
+    <param name="camera_frame_id">camera_link</param>
+    <param name="output_mode">screen</param>
+    <param name="fx">500.0</param><param name="fy">500.0</param>
+    <param name="cx">320.0</param><param name="cy">240.0</param>
+    
+    <state_interface name="data_ptr"/>
+  </sensor> -->
+</ros2_control>
+
+
+</robot>
+

@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="fake_robot_ros2_control" params="name prefix">
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>perception_hw_hardware/PerceptionHwInterface</plugin>
+      </hardware>
+
+      <sensor name="${prefix}camera_front">
+        <!-- hw param -->
+        <param name="device_type">mock_camera</param>
+        <param name="video_device">/dev/video0</param>
+        <param name="image_width">640</param>
+        <param name="image_height">480</param>
+        <param name="framerate">60.0</param>
+        <param name="pixel_format">mjpeg</param>
+        <param name="camera_frame_id">${prefix}camera_link</param>
+        <param name="output_mode">screen</param>
+        <param name="fx">500.0</param><param name="fy">500.0</param>
+        <param name="cx">320.0</param><param name="cy">240.0</param>
+        
+        <!-- add in BaseMember and param matrix-->
+        <param name="enable">true</param>
+        <param name="sensor_components">image_image_raw;</param>
+        <param name="interface_name"></param>
+        <param name="intrinsic_matrix">848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0</param>
+        <param name="distortion">0,0,0,0,0</param>
+        <param name="extrinsics">0,0,0,0,0,0</param>
+
+
+        <!-- export api -->
+        <state_interface name="data_ptr"/>
+      </sensor>
+
+      <sensor name="${prefix}t265_front">
+        <param name="device_type">t265_camera</param>
+        <param name="serial_no">224622110353</param>
+        <param name="usb_port_id">4-1</param>
+        <param name="wait_for_device_timeout">-1.0</param>
+        <param name="reconnect_timeout">6.0</param>
+        <param name="initial_reset">true</param>
+
+        <!-- add in BaseMember and param matrix-->
+        <param name="enable">true</param>
+        <param name="frame_id">t265_camera_link</param>
+        <param name="sensor_components">imu_imu;pose_pose;image_fisheye0;image_fisheye1</param>
+        <param name="interface_name"></param>
+        <param name="intrinsic_matrix">848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0</param>
+        <param name="distortion">0,0,0,0,0</param>
+        <param name="extrinsics">0,0,0,0,0,0</param>
+
+        <state_interface name="data_ptr"/>
+      </sensor>
+    </ros2_control>
+  </xacro:macro>
+</robot>

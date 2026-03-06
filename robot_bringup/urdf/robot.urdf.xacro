@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="fake_robot_description" params="prefix">
+    <link name="${prefix}base_link">
+      <visual>
+        <geometry><box size="0.2 0.2 0.05"/></geometry>
+        <material name="gray"/>
+      </visual>
+    </link>
+
+    <link name="${prefix}link1">
+      <visual>
+        <geometry><box size="0.1 0.1 0.4"/></geometry>
+        <material name="blue"/>
+      </visual>
+    </link>
+
+    <link name="${prefix}link2">
+      <visual>
+        <geometry><box size="0.1 0.1 0.3"/></geometry>
+        <material name="green"/>
+      </visual>
+    </link>
+
+    <joint name="${prefix}joint1" type="revolute">
+      <parent link="${prefix}base_link"/>
+      <child link="${prefix}link1"/>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-3.14" upper="3.14" effort="10" velocity="1.0"/>
+    </joint>
+
+    <joint name="${prefix}joint2" type="revolute">
+      <parent link="${prefix}link1"/>
+      <child link="${prefix}link2"/>
+      <origin xyz="0 0 0.4" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-1.57" upper="1.57" effort="10" velocity="1.0"/>
+    </joint>
+  </xacro:macro>
+</robot>
