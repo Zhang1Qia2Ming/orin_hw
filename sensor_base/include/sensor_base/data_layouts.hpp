@@ -15,17 +15,16 @@ namespace sensor_base {
     struct alignas(64) PoseDataLayout {
         SensorHeader header;
 
-        double pose[7];
-        double velocity[6];
+        double pose[7]; // x, y, z, qw, qx, qy, qz
+        double velocity[6]; // vx, vy, vz, wx, wy, wz
         double reserved[1];
     };
 
     struct alignas(64) ImuDataLayout {
         SensorHeader header;
-        double orientation[4];
-        double angular_velocity[3];
-        double linear_acceleration[3];
-        double reserved[4];
+        double gyro[3];
+        double accel[3];
+        // double reserved[4];
     };
 
     struct ImageDataLayout {

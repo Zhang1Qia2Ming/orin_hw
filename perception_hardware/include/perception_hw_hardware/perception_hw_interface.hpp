@@ -1,5 +1,5 @@
-#ifndef _USB_CAMERA_HARDWARE_USB_CAMERA_HW_INTERFACE_HPP_
-#define _USB_CAMERA_HARDWARE_USB_CAMERA_HW_INTERFACE_HPP_
+#ifndef _PERCEPTION_HARDWARE_PERCEPTION_HW_INTERFACE_HPP_
+#define _PERCEPTION_HARDWARE_PERCEPTION_HW_INTERFACE_HPP_
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
@@ -12,13 +12,14 @@
 #include "rclcpp_lifecycle/state.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include "usb_camera_base/usb_camera_sensor.hpp"
+#include "perception_hw_hardware/snesor_base_types.hpp"
 
-namespace usb_camera_hardware {
 
-class UsbCameraHwInterface : public hardware_interface::SystemInterface {
+namespace perception_hw_hardware {
+
+class PerceptionHwInterface : public hardware_interface::SystemInterface {
 public:
-    RCLCPP_SHARED_PTR_DEFINITIONS(UsbCameraHwInterface)
+    RCLCPP_SHARED_PTR_DEFINITIONS(PerceptionHwInterface)
 
     hardware_interface::CallbackReturn on_init(
         const hardware_interface::HardwareInfo & info) override;
@@ -43,11 +44,11 @@ public:
         const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-    std::unique_ptr<sensor_base::UsbCameraSensor> usb_camera_sensor_;
+    // std::unique_ptr<sensor_base::UsbCameraSensor> usb_camera_sensor_;
     
 };
 
 
-} // namespace usb_camera_hardware
+} // namespace perception_hw_hardware
 
-#endif // _USB_CAMERA_HARDWARE_USB_CAMERA_HW_INTERFACE_HPP_
+#endif // _PERCEPTION_HARDWARE_PERCEPTION_HW_INTERFACE_HPP_

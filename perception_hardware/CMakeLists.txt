@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(usb_camera_hardware)
+project(perception_hw_hardware)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -13,6 +13,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   sensor_base
   usb_camera_base
+  t265_camera_base
   OpenCV
   cv_bridge
 )
@@ -24,29 +25,29 @@ endforeach()
 
 
 add_library(
-  usb_camera_hardware
+  perception_hw_hardware
   SHARED
-  src/usb_camera_hw_interface.cpp
+  src/perception_hw_interface.cpp
 )
 target_include_directories(
-  usb_camera_hardware
+  perception_hw_hardware
   PUBLIC
   include
 )
 
-ament_target_dependencies( usb_camera_hardware
+ament_target_dependencies( perception_hw_hardware
  ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
 # prevent pluginlib from using boost
-target_compile_definitions(usb_camera_hardware PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
+target_compile_definitions(perception_hw_hardware PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
 pluginlib_export_plugin_description_file(
-  hardware_interface usb_camera_hardware.xml)
+  hardware_interface perception_hw_hardware.xml)
 
 install(
   TARGETS
-  usb_camera_hardware
+  perception_hw_hardware
   RUNTIME DESTINATION bin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -58,7 +59,7 @@ install(
 )
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # add_executable(hd_test src/test.cpp) 
-# target_link_libraries(hd_test usb_camera_hardware)
+# target_link_libraries(hd_test perception_hw_hardware)
 # ament_target_dependencies( hd_test
 #  ${THIS_PACKAGE_INCLUDE_DEPENDS}
 # )
@@ -93,7 +94,7 @@ ament_export_include_directories(
   include
 )
 ament_export_libraries(
-  usb_camera_hardware
+  perception_hw_hardware
 )
 ament_export_dependencies(
    ${THIS_PACKAGE_INCLUDE_DEPENDS}

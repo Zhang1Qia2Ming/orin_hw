@@ -1,4 +1,4 @@
-#include "usb_camera_hardware/usb_camera_sensor.hpp"
+#include "usb_camera_base/usb_camera_sensor.hpp"
 #include <iostream>
 #include <chrono>
 #include <thread>

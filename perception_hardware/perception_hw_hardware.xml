@@ -1,0 +1,9 @@
+<library path="perception_hw_hardware">
+  <class name="perception_hw_hardware/PerceptionHwInterface"
+         type="perception_hw_hardware::PerceptionHwInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface for perception.
+    </description>
+  </class>
+</library>

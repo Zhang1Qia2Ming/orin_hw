@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(usb_camera_hardware)
+project(t265_camera_base)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,7 +12,6 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp
   rclcpp_lifecycle
   sensor_base
-  usb_camera_base
   OpenCV
   cv_bridge
 )
@@ -22,31 +21,31 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
+set(REALSENSE2_LIBRARY "/usr/local/lib/librealsense2.so")
+set(REALSENSE2_INCLUDE_DIRS "/usr/local/include")
+
 
 add_library(
-  usb_camera_hardware
+  t265_camera_base
   SHARED
-  src/usb_camera_hw_interface.cpp
+  src/t265_camera_sensor.cpp
 )
 target_include_directories(
-  usb_camera_hardware
+  t265_camera_base
   PUBLIC
   include
+  ${REALSENSE2_INCLUDE_DIRS}
 )
 
-ament_target_dependencies( usb_camera_hardware
+ament_target_dependencies( t265_camera_base
  ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
-# prevent pluginlib from using boost
-target_compile_definitions(usb_camera_hardware PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
-
-pluginlib_export_plugin_description_file(
-  hardware_interface usb_camera_hardware.xml)
+target_link_libraries(t265_camera_base ${REALSENSE2_LIBRARY})
 
 install(
   TARGETS
-  usb_camera_hardware
+  t265_camera_base
   RUNTIME DESTINATION bin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -57,14 +56,14 @@ install(
   DESTINATION include
 )
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
-# add_executable(hd_test src/test.cpp) 
-# target_link_libraries(hd_test usb_camera_hardware)
-# ament_target_dependencies( hd_test
-#  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-# )
+add_executable(hd_test src/test.cpp) 
+target_link_libraries(hd_test t265_camera_base ${REALSENSE2_LIBRARY})
+ament_target_dependencies( hd_test
+ ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
 
-# install(TARGETS hd_test
-# DESTINATION lib/${PROJECT_NAME})
+install(TARGETS hd_test
+DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -93,7 +92,7 @@ ament_export_include_directories(
   include
 )
 ament_export_libraries(
-  usb_camera_hardware
+  t265_camera_base
 )
 ament_export_dependencies(
    ${THIS_PACKAGE_INCLUDE_DEPENDS}
