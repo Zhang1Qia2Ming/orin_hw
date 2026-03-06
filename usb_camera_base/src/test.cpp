@@ -40,11 +40,11 @@ int main(int argc, char** argv) {
     while (std::chrono::steady_clock::now() - start_time < std::chrono::seconds(t)) {
         // 通过我们设计的“后门”直接读标志位
         // 注意：在测试里我们直接模拟读 POD 里的 update_count
-        auto current_count = sensor->data_->header.update_count;
+        auto current_count = sensor->data_1_.header.update_count;
 
         if (current_count != last_count) {
             std::cout << "Capture! Frame Count: " << current_count 
-                      << " Timestamp: " << sensor->data_->header.timestamp_nanos 
+                      << " Timestamp: " << sensor->data_1_.header.timestamp_nanos 
                       << std::endl;
             last_count = current_count;
         }

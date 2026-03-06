@@ -13,8 +13,10 @@ UsbCameraSensor::~UsbCameraSensor() {close_device();}
 bool UsbCameraSensor::init(const UsbCameraConfig & config)
 {
     config_ = config;
-    data_ = std::make_shared<sensor_base::ImageDataLayout>();
-    data_->header.update_count = 0;
+    data_1_ = ImageDataLayout();
+    data_1_.header.update_count = 0;
+    data_2_ = ImageDataLayout();
+    data_2_.header.update_count = 0;
     return true;
 }
 
@@ -60,12 +62,21 @@ void UsbCameraSensor::main_loop()
         }
         // process frame
         cv::rotate(frame, processed_frame, cv::ROTATE_180);
-        data_->image = processed_frame.clone();
-        data_->header.timestamp_nanos = rclcpp::Clock().now().nanoseconds();
-        data_->header.update_count++;
+        data_1_.image = processed_frame.clone();
+        data_1_.header.timestamp_nanos = rclcpp::Clock().now().nanoseconds();
+        data_1_.header.update_count++;
     }
 }
 
+bool UsbCameraSensor::update_buffer2()
+{
+    if (data_mutex_.try_lock_for(std::chrono::microseconds(10))) {
+        data_2_ = data_1_;
+        data_mutex_.unlock();
+        return true;
+    }
+    return false;
+}
 
 
 } // namespace sensor_base

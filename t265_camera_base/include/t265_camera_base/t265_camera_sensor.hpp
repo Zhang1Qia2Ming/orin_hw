@@ -33,7 +33,13 @@ struct T265CameraData {
 
 class T265CameraSensor : public SensorBase {
 public:
-    std::shared_ptr<T265CameraData> data_;
+
+    // double buffer: data_1_ and data_2_
+    T265CameraData data_1_;
+    T265CameraData data_2_;
+
+    std::timed_mutex data_mutex_;
+
     T265CameraSensor(const std::string & name);
     ~T265CameraSensor();
 
@@ -71,6 +77,8 @@ private:
         void frame_callback(const rs2::frame& f);
 
         void data_callback(const rs2::frame& f);
+
+        bool update_buffer2();
 
 private:
     std::string name_;

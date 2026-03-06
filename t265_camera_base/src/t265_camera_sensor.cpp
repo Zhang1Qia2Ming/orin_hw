@@ -14,12 +14,18 @@ T265CameraSensor::~T265CameraSensor() {close_device();}
 bool T265CameraSensor::init(const T265CameraConfig & config)
 {
     config_ = config;
-    data_ = std::make_shared<T265CameraData>();
-    data_->pose.header.update_count = 0;
-    data_->gyro.header.update_count = 0;
-    data_->accel.header.update_count = 0;
-    data_->fisheye0.header.update_count = 0;
-    data_->fisheye1.header.update_count = 0;
+    data_1_ = T265CameraData();
+    data_1_.pose.header.update_count = 0;
+    data_1_.gyro.header.update_count = 0;
+    data_1_.accel.header.update_count = 0;
+    data_1_.fisheye0.header.update_count = 0;
+    data_1_.fisheye1.header.update_count = 0;
+    data_2_ = T265CameraData();
+    data_2_.pose.header.update_count = 0;
+    data_2_.gyro.header.update_count = 0;
+    data_2_.accel.header.update_count = 0;
+    data_2_.fisheye0.header.update_count = 0;
+    data_2_.fisheye1.header.update_count = 0;
     return true;
 }
 
@@ -212,54 +218,79 @@ void T265CameraSensor::data_callback(const rs2::frame& f){
     // 1.handle pose frame
     if(auto pf = f.as<rs2::pose_frame>()){
         auto pose_data = pf.get_pose_data();
-        data_->pose.pose[0] = pose_data.translation.x;
-        data_->pose.pose[1] = pose_data.translation.y;
-        data_->pose.pose[2] = pose_data.translation.z;
-        data_->pose.pose[3] = pose_data.rotation.x;
-        data_->pose.pose[4] = pose_data.rotation.y;
-        data_->pose.pose[5] = pose_data.rotation.z;
-        data_->pose.pose[6] = pose_data.rotation.w;
-        data_->pose.velocity[0] = pose_data.velocity.x;
-        data_->pose.velocity[1] = pose_data.velocity.y;
-        data_->pose.velocity[2] = pose_data.velocity.z;
-        data_->pose.velocity[3] = pose_data.angular_velocity.x;
-        data_->pose.velocity[4] = pose_data.angular_velocity.y;
-        data_->pose.velocity[5] = pose_data.angular_velocity.z;
-        data_->pose.header.timestamp_nanos = ts;
+        std::lock_guard<std::timed_mutex> lock(data_mutex_);
+        data_1_.pose.pose[0] = pose_data.translation.x;
+        data_1_.pose.pose[1] = pose_data.translation.y;
+        data_1_.pose.pose[2] = pose_data.translation.z;
+        data_1_.pose.pose[3] = pose_data.rotation.x;
+        data_1_.pose.pose[4] = pose_data.rotation.y;
+        data_1_.pose.pose[5] = pose_data.rotation.z;
+        data_1_.pose.pose[6] = pose_data.rotation.w;
+        data_1_.pose.velocity[0] = pose_data.velocity.x;
+        data_1_.pose.velocity[1] = pose_data.velocity.y;
+        data_1_.pose.velocity[2] = pose_data.velocity.z;
+        data_1_.pose.velocity[3] = pose_data.angular_velocity.x;
+        data_1_.pose.velocity[4] = pose_data.angular_velocity.y;
+        data_1_.pose.velocity[5] = pose_data.angular_velocity.z;
+        data_1_.pose.header.timestamp_nanos = ts;
+        data_1_.pose.header.update_count++;
     }
     // 2.handle image frame
     else if(auto imgf = f.as<rs2::video_frame>()){
         int index = imgf.get_profile().stream_index();
 
-        cv::Mat raw_img(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data());
-        if(index == 1) {
-            raw_img.copyTo(data_->fisheye0.image);
-            // data_->fisheye0.image = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
-            data_->fisheye0.header.timestamp_nanos = ts;
+        cv::Mat raw_img = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
+        
+        std::lock_guard<std::timed_mutex> lock(data_mutex_);
+        if(index == 1) {            
+            data_1_.fisheye0.image = raw_img;
+            data_1_.fisheye0.header.timestamp_nanos = ts;
+            data_1_.fisheye0.header.update_count++;
         }
         else if(index == 2) {
-            raw_img.copyTo(data_->fisheye1.image);
-            // data_->fisheye1.image = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
-            data_->fisheye1.header.timestamp_nanos = ts;
+            data_1_.fisheye1.image = raw_img;
+            data_1_.fisheye1.header.timestamp_nanos = ts;
+            data_1_.fisheye1.header.update_count++;
         }
     }
-    // 3.handle imu frame
+    // 3.handle gyro or accel frame
     else if(auto mf = f.as<rs2::motion_frame>()){
-        if(mf.get_profile().stream_type() == RS2_STREAM_GYRO && mf.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F) {
-            data_->gyro.gyro[0] = mf.get_motion_data().x;
-            data_->gyro.gyro[1] = mf.get_motion_data().y;
-            data_->gyro.gyro[2] = mf.get_motion_data().z;
-            data_->gyro.header.timestamp_nanos = ts;
+        auto motion_data = mf.get_motion_data();
+        auto stream_type = mf.get_profile().stream_type();
+        auto format = mf.get_profile().format();
+
+        if(stream_type == RS2_STREAM_GYRO && format == RS2_FORMAT_MOTION_XYZ32F) {
+            std::lock_guard<std::timed_mutex> lock(data_mutex_);
+            
+            // handle gyro frame
+            data_1_.gyro.gyro[0] = motion_data.x;
+            data_1_.gyro.gyro[1] = motion_data.y;
+            data_1_.gyro.gyro[2] = motion_data.z;
+            data_1_.gyro.header.timestamp_nanos = ts;
+            data_1_.gyro.header.update_count++;
         }
-        else if(mf.get_profile().stream_type() == RS2_STREAM_ACCEL && mf.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F) {
-            data_->accel.accel[0] = mf.get_motion_data().x;
-            data_->accel.accel[1] = mf.get_motion_data().y;
-            data_->accel.accel[2] = mf.get_motion_data().z;
-            data_->accel.header.timestamp_nanos = ts;
+        else if(stream_type == RS2_STREAM_ACCEL && format == RS2_FORMAT_MOTION_XYZ32F) {
+            std::lock_guard<std::timed_mutex> lock(data_mutex_);
+            
+            // handle accel frame
+            data_1_.accel.accel[0] = motion_data.x;
+            data_1_.accel.accel[1] = motion_data.y;
+            data_1_.accel.accel[2] = motion_data.z;
+            data_1_.accel.header.timestamp_nanos = ts;
+            data_1_.accel.header.update_count++;
         }
     }
 }
 
+bool T265CameraSensor::update_buffer2()
+{
+    if(data_mutex_.try_lock_for(std::chrono::microseconds(50))) {
+        data_2_ = data_1_;
+        data_mutex_.unlock();
+        return true;
+    }
+    return false;
+}
 
 
 } // namespace sensor_base

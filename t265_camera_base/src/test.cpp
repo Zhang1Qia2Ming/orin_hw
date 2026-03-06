@@ -73,15 +73,15 @@ int main(int argc, char** argv) {
 
     while (duration_cast<seconds>(steady_clock::now() - start_run).count() < 30) {
         if (true) {
-            auto data = sensor->data_; // 确保你类里有这个访问接口
+            auto data = sensor->data_1_; // 确保你类里有这个访问接口
             uint64_t current_ts = 0;
 
             // 根据参数决定观测哪个字段
-            if (mode == "pose") current_ts = data->pose.header.timestamp_nanos;
-            else if (mode == "gyro") current_ts = data->gyro.header.timestamp_nanos;
-            else if (mode == "accel") current_ts = data->accel.header.timestamp_nanos;
-            else if (mode == "fisheye0") current_ts = data->fisheye0.header.timestamp_nanos;
-            else if (mode == "fisheye1") current_ts = data->fisheye1.header.timestamp_nanos;
+            if (mode == "pose") current_ts = data.pose.header.timestamp_nanos;
+            else if (mode == "gyro") current_ts = data.gyro.header.timestamp_nanos;
+            else if (mode == "accel") current_ts = data.accel.header.timestamp_nanos;
+            else if (mode == "fisheye0") current_ts = data.fisheye0.header.timestamp_nanos;
+            else if (mode == "fisheye1") current_ts = data.fisheye1.header.timestamp_nanos;
 
             // 检查数据是否有更新
             if (current_ts != last_ts) {
@@ -93,13 +93,13 @@ int main(int argc, char** argv) {
                           << std::fixed << std::setprecision(1) << fps.get_fps() << " | ";
 
                 if (mode == "pose") {
-                    std::cout << "XYZ: " << data->pose.pose[0] << ", " << data->pose.pose[1] << ", " << data->pose.pose[2];
+                    std::cout << "XYZ: " << data.pose.pose[0] << ", " << data.pose.pose[1] << ", " << data.pose.pose[2];
                 } else if (mode == "gyro") {
-                    std::cout << "Gyro: " << data->gyro.gyro[0] << ", " << data->gyro.gyro[1] << ", " << data->gyro.gyro[2];
+                    std::cout << "Gyro: " << data.gyro.gyro[0] << ", " << data.gyro.gyro[1] << ", " << data.gyro.gyro[2];
                 } else if (mode == "accel") {
-                    std::cout << "Accel: " << data->accel.accel[0] << ", " << data->accel.accel[1] << ", " << data->accel.accel[2];
+                    std::cout << "Accel: " << data.accel.accel[0] << ", " << data.accel.accel[1] << ", " << data.accel.accel[2];
                 } else if (mode == "fisheye0" || mode == "fisheye1") {
-                    auto& img = (mode == "fisheye0") ? data->fisheye0.image : data->fisheye1.image;
+                    auto& img = (mode == "fisheye0") ? data.fisheye0.image : data.fisheye1.image;
                     std::cout << "Size: " << img.cols << "x" << img.rows;
                 }
                 std::cout << "          " << std::flush;

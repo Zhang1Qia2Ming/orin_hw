@@ -20,7 +20,10 @@ struct UsbCameraConfig {
 
 class UsbCameraSensor : public SensorBase {
 public:
-    std::shared_ptr<sensor_base::ImageDataLayout> data_;
+    // double buffer: data_1_ and data_2_
+    sensor_base::ImageDataLayout data_1_;
+    sensor_base::ImageDataLayout data_2_;
+
     UsbCameraSensor(const std::string & name);
     ~UsbCameraSensor();
 
@@ -28,6 +31,8 @@ public:
     bool init(const UsbCameraConfig & config);
     bool open_device() override;
     bool close_device() override;
+
+    bool update_buffer2();
 
 protected:
     void main_loop() override;
@@ -37,7 +42,7 @@ private:
     cv::VideoCapture cap_;
     double data_ptr_address_ = 0.0;
 
-    std::mutex data_mutex_;
+    std::timed_mutex data_mutex_;
 
     // config
     UsbCameraConfig config_;
