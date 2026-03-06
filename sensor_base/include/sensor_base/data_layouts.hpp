@@ -20,11 +20,16 @@ namespace sensor_base {
         double reserved[1];
     };
 
-    struct alignas(64) ImuDataLayout {
+    struct alignas(64) GyroDataLayout {
         SensorHeader header;
         double gyro[3];
+        double reserved[3];
+    };
+
+    struct alignas(64) AccelDataLayout {
+        SensorHeader header;
         double accel[3];
-        // double reserved[4];
+        double reserved[3];
     };
 
     struct ImageDataLayout {

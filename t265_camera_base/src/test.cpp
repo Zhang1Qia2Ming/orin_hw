@@ -78,7 +78,8 @@ int main(int argc, char** argv) {
 
             // 根据参数决定观测哪个字段
             if (mode == "pose") current_ts = data->pose.header.timestamp_nanos;
-            else if (mode == "imu") current_ts = data->imu.header.timestamp_nanos;
+            else if (mode == "gyro") current_ts = data->gyro.header.timestamp_nanos;
+            else if (mode == "accel") current_ts = data->accel.header.timestamp_nanos;
             else if (mode == "fisheye0") current_ts = data->fisheye0.header.timestamp_nanos;
             else if (mode == "fisheye1") current_ts = data->fisheye1.header.timestamp_nanos;
 
@@ -93,8 +94,10 @@ int main(int argc, char** argv) {
 
                 if (mode == "pose") {
                     std::cout << "XYZ: " << data->pose.pose[0] << ", " << data->pose.pose[1] << ", " << data->pose.pose[2];
-                } else if (mode == "imu") {
-                    std::cout << "Gyro: " << data->imu.gyro[0] << ", " << data->imu.gyro[1] << ", " << data->imu.gyro[2];
+                } else if (mode == "gyro") {
+                    std::cout << "Gyro: " << data->gyro.gyro[0] << ", " << data->gyro.gyro[1] << ", " << data->gyro.gyro[2];
+                } else if (mode == "accel") {
+                    std::cout << "Accel: " << data->accel.accel[0] << ", " << data->accel.accel[1] << ", " << data->accel.accel[2];
                 } else if (mode == "fisheye0" || mode == "fisheye1") {
                     auto& img = (mode == "fisheye0") ? data->fisheye0.image : data->fisheye1.image;
                     std::cout << "Size: " << img.cols << "x" << img.rows;

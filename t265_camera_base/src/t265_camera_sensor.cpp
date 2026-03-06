@@ -16,7 +16,8 @@ bool T265CameraSensor::init(const T265CameraConfig & config)
     config_ = config;
     data_ = std::make_shared<T265CameraData>();
     data_->pose.header.update_count = 0;
-    data_->imu.header.update_count = 0;
+    data_->gyro.header.update_count = 0;
+    data_->accel.header.update_count = 0;
     data_->fisheye0.header.update_count = 0;
     data_->fisheye1.header.update_count = 0;
     return true;
@@ -157,14 +158,16 @@ bool T265CameraSensor::open_device()
 bool T265CameraSensor::close_device()
 {
     auto logger = rclcpp::get_logger("T265CameraSensor");
+    is_alive_ = false;
+    if (query_thread_.joinable()) {
+        query_thread_.join();
+    }
     try {
-        if (!is_streaming_) {
-            RCLCPP_WARN(logger, "Sensor is not streaming, nothing to stop.");
-            return true;
+        if (is_streaming_) {
+            rs_sensor_.stop();
+            rs_sensor_.close();
+            is_streaming_ = false;
         }
-        rs_sensor_.stop();
-        rs_sensor_.close();
-        is_streaming_ = false;
     } catch (const std::exception & e) {
         RCLCPP_ERROR(logger, "Sensor API Error: %s", e.what());
     }
@@ -227,34 +230,58 @@ void T265CameraSensor::data_callback(const rs2::frame& f){
     // 2.handle image frame
     else if(auto imgf = f.as<rs2::video_frame>()){
         int index = imgf.get_profile().stream_index();
+
+        cv::Mat raw_img(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data());
         if(index == 1) {
-            data_->fisheye0.image = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
+            raw_img.copyTo(data_->fisheye0.image);
+            // data_->fisheye0.image = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
             data_->fisheye0.header.timestamp_nanos = ts;
         }
         else if(index == 2) {
-            data_->fisheye1.image = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
+            raw_img.copyTo(data_->fisheye1.image);
+            // data_->fisheye1.image = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
             data_->fisheye1.header.timestamp_nanos = ts;
         }
     }
     // 3.handle imu frame
     else if(auto mf = f.as<rs2::motion_frame>()){
         if(mf.get_profile().stream_type() == RS2_STREAM_GYRO && mf.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F) {
-            data_->imu.gyro[0] = mf.get_motion_data().x;
-            data_->imu.gyro[1] = mf.get_motion_data().y;
-            data_->imu.gyro[2] = mf.get_motion_data().z;
+            data_->gyro.gyro[0] = mf.get_motion_data().x;
+            data_->gyro.gyro[1] = mf.get_motion_data().y;
+            data_->gyro.gyro[2] = mf.get_motion_data().z;
+            data_->gyro.header.timestamp_nanos = ts;
         }
         else if(mf.get_profile().stream_type() == RS2_STREAM_ACCEL && mf.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F) {
-            data_->imu.accel[0] = mf.get_motion_data().x;
-            data_->imu.accel[1] = mf.get_motion_data().y;
-            data_->imu.accel[2] = mf.get_motion_data().z;
+            data_->accel.accel[0] = mf.get_motion_data().x;
+            data_->accel.accel[1] = mf.get_motion_data().y;
+            data_->accel.accel[2] = mf.get_motion_data().z;
+            data_->accel.header.timestamp_nanos = ts;
         }
-        data_->imu.header.timestamp_nanos = ts;
     }
 }
 
 
 
 } // namespace sensor_base
+
+// test@TER30JB3-ubuntu:~/control_ws/src/orin_Hw$ /usr/local/bin/rs-enumerate-devices 
+// Device info: 
+//     Name                          : 	Intel RealSense T265
+//     Serial Number                 : 	224622110353
+//     Firmware Version              : 	0.2.0.951
+//     Physical Port                 : 	4-1-7
+//     Product Id                    : 	0B37
+//     Usb Type Descriptor           : 	3.1
+//     Product Line                  : 	T200
+
+// Stream Profiles supported by Tracking Module
+//  Supported modes:
+//     stream       resolution      fps       format   
+//     Fisheye 1	  848x800	@ 30Hz	   Y8
+//     Fisheye 2	  848x800	@ 30Hz	   Y8
+//     Gyro	 N/A		@ 200Hz	   MOTION_XYZ32F
+//     Accel	 N/A		@ 62Hz	   MOTION_XYZ32F
+//     Pose	 N/A		@ 200Hz	   6DOF
 
 
 // v 2.53.1 example

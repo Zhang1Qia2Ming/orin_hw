@@ -25,7 +25,8 @@ struct T265CameraConfig {
 
 struct T265CameraData {
     PoseDataLayout pose;
-    ImuDataLayout imu;
+    GyroDataLayout gyro;
+    AccelDataLayout accel;
     ImageDataLayout fisheye0;  // left
     ImageDataLayout fisheye1;  // right
 };
