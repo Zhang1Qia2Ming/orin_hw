@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(perception_hw_hardware)
+project(t265_camera_hardware)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,7 +12,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp
   rclcpp_lifecycle
   sensor_base
-  usb_camera_base
+  # usb_camera_base
   t265_camera_base
   OpenCV
   cv_bridge
@@ -25,29 +25,29 @@ endforeach()
 
 
 add_library(
-  perception_hw_hardware
+  t265_camera_hardware
   SHARED
-  src/perception_hw_interface.cpp
+  src/t265_camera_hw_hardware.cpp
 )
 target_include_directories(
-  perception_hw_hardware
+  t265_camera_hardware
   PUBLIC
   include
 )
 
-ament_target_dependencies( perception_hw_hardware
+ament_target_dependencies( t265_camera_hardware
  ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
 # prevent pluginlib from using boost
-target_compile_definitions(perception_hw_hardware PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
+target_compile_definitions(t265_camera_hardware PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
 pluginlib_export_plugin_description_file(
-  hardware_interface perception_hw_hardware.xml)
+  hardware_interface t265_camera_hardware.xml)
 
 install(
   TARGETS
-  perception_hw_hardware
+  t265_camera_hardware
   RUNTIME DESTINATION bin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -94,7 +94,7 @@ ament_export_include_directories(
   include
 )
 ament_export_libraries(
-  perception_hw_hardware
+  t265_camera_hardware
 )
 ament_export_dependencies(
    ${THIS_PACKAGE_INCLUDE_DEPENDS}

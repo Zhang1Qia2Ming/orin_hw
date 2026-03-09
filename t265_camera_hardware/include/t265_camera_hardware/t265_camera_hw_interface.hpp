@@ -15,9 +15,9 @@
 #include "perception_hw_hardware/snesor_base_types.hpp"
 
 
-namespace perception_hw_hardware {
+namespace t265_camera_hardware {
 
-class PerceptionHwInterface : public hardware_interface::SystemInterface {
+class T265CameraHwInterface : public hardware_interface::SystemInterface {
 public:
     RCLCPP_SHARED_PTR_DEFINITIONS(PerceptionHwInterface)
 

@@ -1,0 +1,9 @@
+<library path="t265_camera_hardware">
+  <class name="t265_camera_hardware/T265CameraHardware"
+         type="t265_camera_hardware::T265CameraHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface for T265 camera.
+    </description>
+  </class>
+</library>
