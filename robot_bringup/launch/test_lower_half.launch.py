@@ -45,7 +45,7 @@ def generate_launch_description():
         [
             FindPackageShare("robot_bringup"),
             "config",
-            "test_params.yaml",
+            "test_none.yaml",
         ]
     )
     
@@ -55,7 +55,7 @@ def generate_launch_description():
         executable='ros2_control_node',
         parameters=[robot_controllers],
         output='screen',
-        arguments=['--ros-args', '--log-level', 'controller_manager:=info'],
+        arguments=['--ros-args', '--log-level', 'controller_manager:=debug'],
         remappings=[
             ("~/robot_description", "/robot_description"),
         ],
@@ -69,27 +69,25 @@ def generate_launch_description():
         parameters=[robot_description]
     )
 
-    image_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["test_image_controller", "--controller-manager", "/controller_manager"],
-        output='screen'
-    )
+    # perception_system_controller_spawner = Node(
+    #     package="controller_manager",
+    #     executable="spawner",
+    #     arguments=["perception_system_controller", "--controller-manager", "/controller_manager"],
+    # )
 
 
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', rviz_config_file],
-        output='screen'
-    )
+    # rviz_node = Node(
+    #     package='rviz2',
+    #     executable='rviz2',
+    #     name='rviz2',
+    #     arguments=['-d', rviz_config_file],
+    #     output='screen'
+    # )
 
     ld = LaunchDescription(declared_arguments + [control_node, 
     robot_state_pub_node, 
-    image_controller_spawner,
     # perception_system_controller_spawner,
-    rviz_node,
+    # rviz_node,
     ])
     return ld
 

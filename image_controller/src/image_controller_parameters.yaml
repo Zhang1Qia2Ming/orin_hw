@@ -1,0 +1,12 @@
+image_controller:
+  image_list:
+    type: string_array
+    default_value: ["t265_front/image0", "t265_front/image1","camera_front/image"]
+    description: "List of image topics, each topic should be in the format of 'device_name/image_name'"
+
+
+  # members:
+  #   __map_image_list:
+  #     enable:
+  #       type: bool
+  #       default_value: true

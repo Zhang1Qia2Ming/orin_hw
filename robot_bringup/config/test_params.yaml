@@ -1,0 +1,12 @@
+controller_manager:
+  ros__parameters:
+    update_frequency: 100.0
+    test_image_controller:
+      type: image_controller/ImageController
+
+test_image_controller:
+  ros__parameters:
+    image_list: ["t265_front/image0", "t265_front/image1", "camera_front/image"]
+
+
+

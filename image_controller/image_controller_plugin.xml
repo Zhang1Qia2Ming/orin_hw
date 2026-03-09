@@ -1,0 +1,9 @@
+<library path="image_controller">
+  <class name="image_controller/ImageController"
+         type="image_controller::ImageController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Controller for publishing images.
+    </description>
+  </class>
+</library>

@@ -58,7 +58,7 @@ std::vector<hardware_interface::StateInterface> UsbCameraHwInterface::export_sta
     // static_cast<double>(reinterpret_cast<uintptr_t>(&data_))
     
     state_interfaces.emplace_back(hardware_interface::StateInterface(usb_camera_sensor_->get_name(), "image", 
-        reinterpret_cast<double*>(usb_camera_sensor_->data_2_ptr_)));
+        reinterpret_cast<double*>(&usb_camera_sensor_->data_2_ptr_)));
     return state_interfaces;
 }
 
