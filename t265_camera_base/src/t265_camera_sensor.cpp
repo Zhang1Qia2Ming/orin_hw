@@ -33,6 +33,13 @@ bool T265CameraSensor::open_device()
 {
     is_alive_ = true;
     is_streaming_ = false;
+
+    pose_ptr_ = &(data_2_.pose);
+    gyro_ptr_ = &(data_2_.gyro);
+    accel_ptr_ = &(data_2_.accel);
+    fisheye0_ptr_ = &(data_2_.fisheye0);
+    fisheye1_ptr_ = &(data_2_.fisheye1);
+
     auto logger = rclcpp::get_logger("T265CameraSensor");
 
     try {

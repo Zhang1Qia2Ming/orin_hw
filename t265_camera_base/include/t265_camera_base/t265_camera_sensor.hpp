@@ -38,6 +38,13 @@ public:
     T265CameraData data_1_;
     T265CameraData data_2_;
 
+    // pointer
+    PoseDataLayout* pose_ptr_ = nullptr;
+    GyroDataLayout* gyro_ptr_ = nullptr;
+    AccelDataLayout* accel_ptr_ = nullptr;
+    ImageDataLayout* fisheye0_ptr_ = nullptr;
+    ImageDataLayout* fisheye1_ptr_ = nullptr;
+
     std::timed_mutex data_mutex_;
 
     T265CameraSensor(const std::string & name);
@@ -47,6 +54,7 @@ public:
     bool init(const T265CameraConfig & config);
     bool open_device();
     bool close_device();
+    bool update_buffer2();
 
 protected:
     void main_loop() override;
@@ -78,8 +86,6 @@ private:
 
         void data_callback(const rs2::frame& f);
 
-        bool update_buffer2();
-
 private:
     std::string name_;
     bool is_alive_ = false;
@@ -92,6 +98,7 @@ private:
     
     // config
     T265CameraConfig config_;
+    
 };
 
 } // namespace sensor_base

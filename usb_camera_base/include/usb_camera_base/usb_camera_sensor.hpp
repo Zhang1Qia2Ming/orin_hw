@@ -23,6 +23,7 @@ public:
     // double buffer: data_1_ and data_2_
     sensor_base::ImageDataLayout data_1_;
     sensor_base::ImageDataLayout data_2_;
+    sensor_base::ImageDataLayout * data_2_ptr_ = nullptr;
 
     UsbCameraSensor(const std::string & name);
     ~UsbCameraSensor();

@@ -39,6 +39,8 @@ bool UsbCameraSensor::open_device()
     cap_.set(cv::CAP_PROP_FRAME_HEIGHT, config_.image_height);
     cap_.set(cv::CAP_PROP_FPS, config_.framerate);
 
+    data_2_ptr_ = &data_2_;
+    
     return true;
 }
 

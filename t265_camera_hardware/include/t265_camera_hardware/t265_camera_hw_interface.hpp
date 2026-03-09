@@ -1,5 +1,5 @@
-#ifndef _PERCEPTION_HARDWARE_PERCEPTION_HW_INTERFACE_HPP_
-#define _PERCEPTION_HARDWARE_PERCEPTION_HW_INTERFACE_HPP_
+#ifndef _T265_CAMERA_HARDWARE_T265_CAMERA_HW_INTERFACE_HPP_
+#define _T265_CAMERA_HARDWARE_T265_CAMERA_HW_INTERFACE_HPP_
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
@@ -12,14 +12,14 @@
 #include "rclcpp_lifecycle/state.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-#include "perception_hw_hardware/snesor_base_types.hpp"
+#include "t265_camera_hardware/sensor_base_types.hpp"
 
 
 namespace t265_camera_hardware {
 
 class T265CameraHwInterface : public hardware_interface::SystemInterface {
 public:
-    RCLCPP_SHARED_PTR_DEFINITIONS(PerceptionHwInterface)
+    RCLCPP_SHARED_PTR_DEFINITIONS(T265CameraHwInterface)
 
     hardware_interface::CallbackReturn on_init(
         const hardware_interface::HardwareInfo & info) override;
@@ -44,11 +44,11 @@ public:
         const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-    // std::unique_ptr<sensor_base::UsbCameraSensor> usb_camera_sensor_;
+    std::unique_ptr<sensor_base::T265CameraSensor> t265_camera_sensor_;
     
 };
 
 
-} // namespace perception_hw_hardware
+} // namespace t265_camera_hardware
 
-#endif // _PERCEPTION_HARDWARE_PERCEPTION_HW_INTERFACE_HPP_
+#endif // _T265_CAMERA_HARDWARE_T265_CAMERA_HW_INTERFACE_HPP_

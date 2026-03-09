@@ -1,9 +1,9 @@
-#include "perception_hardware/perception_interface.hpp"
-#include "perception_hw_hardware/snesor_base_types.hpp"
+#include "t265_camera_hardware/t265_camera_hw_interface.hpp"
+#include "t265_camera_hardware/sensor_base_types.hpp"
 
-namespace perception_hw_hardware {
+namespace t265_camera_hardware {
 
-hardware_interface::CallbackReturn PerceptionHwInterface::on_init(
+hardware_interface::CallbackReturn T265CameraHwInterface::on_init(
     const hardware_interface::HardwareInfo & info)
 {
     if (hardware_interface::SystemInterface::on_init(info) != hardware_interface::CallbackReturn::SUCCESS)
@@ -11,55 +11,80 @@ hardware_interface::CallbackReturn PerceptionHwInterface::on_init(
         return hardware_interface::CallbackReturn::ERROR;
     }
 
-    // if (!usb_camera_sensor_->init(config))
-    // {
-    //     return hardware_interface::CallbackReturn::ERROR;
-    // }
+    t265_camera_sensor_ = std::make_unique<sensor_base::T265CameraSensor>(info.name);
+    
+    sensor_base::T265CameraConfig config;
+    config.serial_no = info.hardware_parameters.find("serial_no")->second;
+    config.usb_port_id = info.hardware_parameters.find("usb_port_id")->second;
+    config.device_type = info.hardware_parameters.find("device_type")->second;
+    config.wait_for_device_timeout = std::stod(info.hardware_parameters.find("wait_for_device_timeout")->second);
+    config.reconnect_timeout = std::stod(info.hardware_parameters.find("reconnect_timeout")->second);
+    config.initial_reset = std::stoi(info.hardware_parameters.find("initial_reset")->second);
+
+    if(!t265_camera_sensor_->init(config))
+    {
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+
 
     return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn UsbCameraHwInterface::on_configure(
+hardware_interface::CallbackReturn T265CameraHwInterface::on_configure(
     const rclcpp_lifecycle::State & previous_state)
 {
     return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn UsbCameraHwInterface::on_activate(
+hardware_interface::CallbackReturn T265CameraHwInterface::on_activate(
     const rclcpp_lifecycle::State & previous_state)
 {
-    usb_camera_sensor_->open_device();
-    usb_camera_sensor_->start_thread();
+    t265_camera_sensor_->open_device();
+    t265_camera_sensor_->start_thread();
     return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn UsbCameraHwInterface::on_deactivate(
+hardware_interface::CallbackReturn T265CameraHwInterface::on_deactivate(
     const rclcpp_lifecycle::State & previous_state)
 {
-    usb_camera_sensor_->stop_thread();
-    usb_camera_sensor_->close_device();
+    t265_camera_sensor_->stop_thread();
+    t265_camera_sensor_->close_device();
     return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-std::vector<hardware_interface::StateInterface> UsbCameraHwInterface::export_state_interfaces()
+std::vector<hardware_interface::StateInterface> T265CameraHwInterface::export_state_interfaces()
+{
+    // export pose, gyro, accel, image
+    std::vector<hardware_interface::StateInterface> state_interfaces;
+
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "pose", 
+        reinterpret_cast<double*>(&(t265_camera_sensor_->pose_ptr_))));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "gyro", 
+        reinterpret_cast<double*>(&(t265_camera_sensor_->gyro_ptr_))));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "accel", 
+        reinterpret_cast<double*>(&(t265_camera_sensor_->accel_ptr_))));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "image", 
+        reinterpret_cast<double*>(&(t265_camera_sensor_->fisheye0_ptr_))));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "image", 
+        reinterpret_cast<double*>(&(t265_camera_sensor_->fisheye1_ptr_))));
+    return state_interfaces; 
+}
+
+std::vector<hardware_interface::CommandInterface> T265CameraHwInterface::export_command_interfaces()
 {
     return {};
 }
 
-std::vector<hardware_interface::CommandInterface> UsbCameraHwInterface::export_command_interfaces()
-{
-    return {};
-}
-
-hardware_interface::return_type UsbCameraHwInterface::read(
+hardware_interface::return_type T265CameraHwInterface::read(
     const rclcpp::Time & time, const rclcpp::Duration & period)
 {
     // todo: copy and add mutex
     // copy from data block1 to data block2
+    t265_camera_sensor_->update_buffer2();
     return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type UsbCameraHwInterface::write(
+hardware_interface::return_type T265CameraHwInterface::write(
     const rclcpp::Time & time, const rclcpp::Duration & period)
 {
     return hardware_interface::return_type::OK;
@@ -67,9 +92,9 @@ hardware_interface::return_type UsbCameraHwInterface::write(
 
 
 
-} // namespace perception_hw_hardware
+} // namespace t265_camera_hardware
 
 
 #include "pluginlib/class_list_macros.hpp"
 
-PLUGINLIB_EXPORT_CLASS(perception_hw_hardware::PerceptionHwInterface, hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(t265_camera_hardware::T265CameraHwInterface, hardware_interface::SystemInterface)

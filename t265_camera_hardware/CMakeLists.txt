@@ -27,7 +27,7 @@ endforeach()
 add_library(
   t265_camera_hardware
   SHARED
-  src/t265_camera_hw_hardware.cpp
+  src/t265_camera_hw_interface.cpp
 )
 target_include_directories(
   t265_camera_hardware

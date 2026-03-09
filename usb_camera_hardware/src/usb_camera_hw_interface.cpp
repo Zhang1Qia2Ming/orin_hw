@@ -54,7 +54,12 @@ hardware_interface::CallbackReturn UsbCameraHwInterface::on_deactivate(
 
 std::vector<hardware_interface::StateInterface> UsbCameraHwInterface::export_state_interfaces()
 {
-    return {};
+    std::vector<hardware_interface::StateInterface> state_interfaces;
+    // static_cast<double>(reinterpret_cast<uintptr_t>(&data_))
+    
+    state_interfaces.emplace_back(hardware_interface::StateInterface(usb_camera_sensor_->get_name(), "image", 
+        reinterpret_cast<double*>(usb_camera_sensor_->data_2_ptr_)));
+    return state_interfaces;
 }
 
 std::vector<hardware_interface::CommandInterface> UsbCameraHwInterface::export_command_interfaces()
@@ -67,6 +72,7 @@ hardware_interface::return_type UsbCameraHwInterface::read(
 {
     // todo: copy and add mutex
     // copy from data block1 to data block2
+    usb_camera_sensor_->update_buffer2();
     return hardware_interface::return_type::OK;
 }
 
