@@ -4,14 +4,14 @@
   <xacro:arg name="prefix" default=""/>
   <xacro:arg name="use_mock_hardware" default="false"/>
 
-  <xacro:include filename="$(find perception_bringup)/urdf/robot.materials.xacro" />
-  <xacro:include filename="$(find perception_bringup)/urdf/robot.urdf.xacro" />
-  <xacro:include filename="$(find perception_bringup)/urdf/robot.ros2_control.xacro" />
+  <xacro:include filename="$(find robot_bringup)/urdf/robot.materials.xacro" />
+  <xacro:include filename="$(find robot_bringup)/urdf/robot.urdf.xacro" />
+  <xacro:include filename="$(find robot_bringup)/urdf/robot.ros2_control.xacro" />
 
   <xacro:fake_robot_description prefix="$(arg prefix)" />
 
   <xacro:fake_robot_ros2_control 
-    name="OrinPerceptionSystem" 
+    name="OrinSensor:" 
     prefix="$(arg prefix)" />
 
 </robot>

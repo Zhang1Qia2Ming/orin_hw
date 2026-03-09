@@ -1,0 +1,7 @@
+controller_manager:
+  ros__parameters:
+    update_frequency: 100.0
+
+
+
+

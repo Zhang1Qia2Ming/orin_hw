@@ -41,13 +41,13 @@ def generate_launch_description():
 
     robot_description = {"robot_description": robot_description_content}
 
-    # robot_controllers = PathJoinSubstitution(
-    #     [
-    #         FindPackageShare("robot_bringup"),
-    #         "config",
-    #         "test_mock_camera_controller.yaml",
-    #     ]
-    # )
+    robot_controllers = PathJoinSubstitution(
+        [
+            FindPackageShare("robot_bringup"),
+            "config",
+            "test_none.yaml",
+        ]
+    )
     
     # ros2_control_node
     control_node = Node(

@@ -19,7 +19,7 @@ hardware_interface::CallbackReturn T265CameraHwInterface::on_init(
     config.device_type = info.hardware_parameters.find("device_type")->second;
     config.wait_for_device_timeout = std::stod(info.hardware_parameters.find("wait_for_device_timeout")->second);
     config.reconnect_timeout = std::stod(info.hardware_parameters.find("reconnect_timeout")->second);
-    config.initial_reset = std::stoi(info.hardware_parameters.find("initial_reset")->second);
+    config.initial_reset = (info.hardware_parameters.find("initial_reset")->second == "true")? true: false;
 
     if(!t265_camera_sensor_->init(config))
     {
@@ -63,9 +63,9 @@ std::vector<hardware_interface::StateInterface> T265CameraHwInterface::export_st
         reinterpret_cast<double*>(&(t265_camera_sensor_->gyro_ptr_))));
     state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "accel", 
         reinterpret_cast<double*>(&(t265_camera_sensor_->accel_ptr_))));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "image", 
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "image0", 
         reinterpret_cast<double*>(&(t265_camera_sensor_->fisheye0_ptr_))));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "image", 
+    state_interfaces.emplace_back(hardware_interface::StateInterface(t265_camera_sensor_->get_name(), "image1", 
         reinterpret_cast<double*>(&(t265_camera_sensor_->fisheye1_ptr_))));
     return state_interfaces; 
 }
