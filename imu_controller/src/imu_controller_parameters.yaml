@@ -1,0 +1,12 @@
+imu_controller:
+  imu_list:
+    type: string_array
+    default_value: ["t265_front/accel", "t265_front/gyro"]
+    description: "List of imu(accel and gyro) topics, each topic should be in the format of 'device_name/accel_name','device_name/gyro_name'"
+
+
+  # members:
+  #   __map_imu_list:
+  #     enable:
+  #       type: bool
+  #       default_value: true

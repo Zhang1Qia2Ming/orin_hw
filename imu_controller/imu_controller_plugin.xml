@@ -1,0 +1,9 @@
+<library path="imu_controller">
+  <class name="imu_controller/ImuController"
+         type="imu_controller::ImuController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Controller for publishing pose.
+    </description>
+  </class>
+</library>

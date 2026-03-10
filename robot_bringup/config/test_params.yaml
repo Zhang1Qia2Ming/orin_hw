@@ -5,6 +5,12 @@ controller_manager:
       type: image_controller/ImageController
     test_pose_controller:
       type: pose_controller/PoseController
+    test_imu_controller:
+      type: imu_controller/ImuController
+    # todo:different rate
+    # time
+    # test high jingdu clock yanchi
+
 
 test_image_controller:
   ros__parameters:
@@ -13,6 +19,10 @@ test_image_controller:
 test_pose_controller:
   ros__parameters:
     pose_list: ["t265_front/pose"]
+
+test_imu_controller:
+  ros__parameters:
+    imu_list: ["t265_front/accel", "t265_front/gyro"]
 
 
 
