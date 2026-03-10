@@ -1,0 +1,12 @@
+pose_controller:
+  pose_list:
+    type: string_array
+    default_value: ["t265_front/pose"]
+    description: "List of pose topics, each topic should be in the format of 'device_name/pose_name'"
+
+
+  # members:
+  #   __map_pose_list:
+  #     enable:
+  #       type: bool
+  #       default_value: true

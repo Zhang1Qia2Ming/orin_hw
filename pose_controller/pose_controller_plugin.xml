@@ -1,0 +1,9 @@
+<library path="pose_controller">
+  <class name="pose_controller/PoseController"
+         type="pose_controller::PoseController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Controller for publishing pose.
+    </description>
+  </class>
+</library>

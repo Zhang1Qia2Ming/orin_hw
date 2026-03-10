@@ -147,7 +147,8 @@ bool T265CameraSensor::open_device()
                         
                         // frame_callback(f);
 
-                        data_callback(f);
+                        // data_callback(f);
+                        data_callback2(f);
                         
                     });
 
@@ -223,8 +224,10 @@ void T265CameraSensor::data_callback(const rs2::frame& f){
     uint64_t ts = static_cast<uint64_t>(f.get_timestamp() * 1000000);
 
     // 1.handle pose frame
-    if(auto pf = f.as<rs2::pose_frame>()){
+    if(f.is<rs2::pose_frame>()){
+        auto pf = f.as<rs2::pose_frame>();
         auto pose_data = pf.get_pose_data();
+
         std::lock_guard<std::timed_mutex> lock(data_mutex_);
         data_1_.pose.pose[0] = pose_data.translation.x;
         data_1_.pose.pose[1] = pose_data.translation.y;
@@ -241,9 +244,11 @@ void T265CameraSensor::data_callback(const rs2::frame& f){
         data_1_.pose.velocity[5] = pose_data.angular_velocity.z;
         data_1_.pose.header.timestamp_nanos = ts;
         data_1_.pose.header.update_count++;
+        // RCLCPP_INFO(rclcpp::get_logger("T265CameraDevice"), "pose frame update count: %ld", data_1_.pose.header.update_count);
     }
     // 2.handle image frame
-    else if(auto imgf = f.as<rs2::video_frame>()){
+    else if(f.is<rs2::video_frame>()){
+        auto imgf = f.as<rs2::video_frame>();
         int index = imgf.get_profile().stream_index();
 
         cv::Mat raw_img = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
@@ -261,7 +266,8 @@ void T265CameraSensor::data_callback(const rs2::frame& f){
         }
     }
     // 3.handle gyro or accel frame
-    else if(auto mf = f.as<rs2::motion_frame>()){
+    else if(f.is<rs2::motion_frame>()){
+        auto mf = f.as<rs2::motion_frame>();
         auto motion_data = mf.get_motion_data();
         auto stream_type = mf.get_profile().stream_type();
         auto format = mf.get_profile().format();
@@ -289,10 +295,100 @@ void T265CameraSensor::data_callback(const rs2::frame& f){
     }
 }
 
+void T265CameraSensor::data_callback2(const rs2::frame& f) {
+    // 拦截 frameset
+    if (!f || f.is<rs2::frameset>()) { return; }
+
+    uint64_t ts = static_cast<uint64_t>(f.get_timestamp() * 1000000);
+    
+    // ⚡ 核心修改：读取纯数字的物理流类型！
+    auto stream_type = f.get_profile().stream_type();
+
+    // 1. handle pose frame (用 stream_type 判断！)
+    if (stream_type == RS2_STREAM_POSE) {
+        
+        // 既然标签对了，强制转换 (as) 就绝对安全
+        auto pf = f.as<rs2::pose_frame>();
+        auto pose_data = pf.get_pose_data();
+
+        std::lock_guard<std::timed_mutex> lock(data_mutex_);
+        data_1_.pose.pose[0] = pose_data.translation.x;
+        data_1_.pose.pose[1] = pose_data.translation.y;
+        data_1_.pose.pose[2] = pose_data.translation.z;
+        data_1_.pose.pose[3] = pose_data.rotation.x;
+        data_1_.pose.pose[4] = pose_data.rotation.y;
+        data_1_.pose.pose[5] = pose_data.rotation.z;
+        data_1_.pose.pose[6] = pose_data.rotation.w;
+        data_1_.pose.velocity[0] = pose_data.velocity.x;
+        data_1_.pose.velocity[1] = pose_data.velocity.y;
+        data_1_.pose.velocity[2] = pose_data.velocity.z;
+        data_1_.pose.velocity[3] = pose_data.angular_velocity.x;
+        data_1_.pose.velocity[4] = pose_data.angular_velocity.y;
+        data_1_.pose.velocity[5] = pose_data.angular_velocity.z;
+        
+        data_1_.pose.header.timestamp_nanos = ts;
+        data_1_.pose.header.update_count++;
+        
+        // print pose frame update count
+        // if (data_1_.pose.header.update_count % 100 == 0) {
+        //     RCLCPP_INFO(rclcpp::get_logger("T265CameraDevice"), "pose frame update count: %ld", data_1_.pose.header.update_count);
+        // }
+    }
+    // 2. handle image frame (用 stream_type 判断)
+    else if (stream_type == RS2_STREAM_FISHEYE) {
+        auto imgf = f.as<rs2::video_frame>();
+        int index = imgf.get_profile().stream_index();
+
+        cv::Mat raw_img = cv::Mat(imgf.get_height(), imgf.get_width(), CV_8UC1, (void*)imgf.get_data()).clone();
+        
+        std::lock_guard<std::timed_mutex> lock(data_mutex_);
+        if (index == 1) {            
+            data_1_.fisheye0.image = raw_img;
+            data_1_.fisheye0.header.timestamp_nanos = ts;
+            data_1_.fisheye0.header.update_count++;
+        }
+        else if (index == 2) {
+            data_1_.fisheye1.image = raw_img;
+            data_1_.fisheye1.header.timestamp_nanos = ts;
+            data_1_.fisheye1.header.update_count++;
+        }
+    }
+    // 3. handle gyro and accel 同样请换成 stream_type 判断！
+    else if (stream_type == RS2_STREAM_GYRO || stream_type == RS2_STREAM_ACCEL) {
+        auto mf = f.as<rs2::motion_frame>();
+        auto motion_data = mf.get_motion_data();
+        auto stream_type = mf.get_profile().stream_type();
+        auto format = mf.get_profile().format();
+        if(stream_type == RS2_STREAM_GYRO && format == RS2_FORMAT_MOTION_XYZ32F) {
+            std::lock_guard<std::timed_mutex> lock(data_mutex_);
+            
+            // handle gyro frame
+            data_1_.gyro.gyro[0] = motion_data.x;
+            data_1_.gyro.gyro[1] = motion_data.y;
+            data_1_.gyro.gyro[2] = motion_data.z;
+            data_1_.gyro.header.timestamp_nanos = ts;
+            data_1_.gyro.header.update_count++;
+        }
+        else if(stream_type == RS2_STREAM_ACCEL && format == RS2_FORMAT_MOTION_XYZ32F) {
+            std::lock_guard<std::timed_mutex> lock(data_mutex_);
+            
+            // handle accel frame
+            data_1_.accel.accel[0] = motion_data.x;
+            data_1_.accel.accel[1] = motion_data.y;
+            data_1_.accel.accel[2] = motion_data.z;
+            data_1_.accel.header.timestamp_nanos = ts;
+            data_1_.accel.header.update_count++;
+        }
+    }
+}
+
+
+
 bool T265CameraSensor::update_buffer2()
 {
     if(data_mutex_.try_lock_for(std::chrono::microseconds(50))) {
         data_2_ = data_1_;
+        // RCLCPP_INFO(rclcpp::get_logger("T265CameraDevice:update_buffer2"), "data_2_ update: %ld", data_2_.pose.header.update_count);
         data_mutex_.unlock();
         return true;
     }

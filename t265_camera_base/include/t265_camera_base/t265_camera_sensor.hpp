@@ -86,6 +86,8 @@ private:
 
         void data_callback(const rs2::frame& f);
 
+        void data_callback2(const rs2::frame& f);
+
 private:
     std::string name_;
     bool is_alive_ = false;

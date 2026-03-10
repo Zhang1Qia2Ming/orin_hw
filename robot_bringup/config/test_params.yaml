@@ -1,12 +1,18 @@
 controller_manager:
   ros__parameters:
-    update_frequency: 100.0
+    update_rate: 250
     test_image_controller:
       type: image_controller/ImageController
+    test_pose_controller:
+      type: pose_controller/PoseController
 
 test_image_controller:
   ros__parameters:
     image_list: ["t265_front/image0", "t265_front/image1", "camera_front/image"]
+
+test_pose_controller:
+  ros__parameters:
+    pose_list: ["t265_front/pose"]
 
 
 
