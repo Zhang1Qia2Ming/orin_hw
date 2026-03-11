@@ -91,13 +91,13 @@ def generate_launch_description():
     )
 
 
-    # rviz_node = Node(
-    #     package='rviz2',
-    #     executable='rviz2',
-    #     name='rviz2',
-    #     arguments=['-d', rviz_config_file],
-    #     output='screen'
-    # )
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config_file],
+        output='screen'
+    )
 
     ld = LaunchDescription(declared_arguments + [control_node, 
     robot_state_pub_node, 
@@ -105,7 +105,7 @@ def generate_launch_description():
     pose_controller_spawner,
     imu_controller_spawner,
     # perception_system_controller_spawner,
-    # rviz_node,
+    rviz_node,
     ])
     return ld
 

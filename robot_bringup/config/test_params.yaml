@@ -7,21 +7,24 @@ controller_manager:
       type: pose_controller/PoseController
     test_imu_controller:
       type: imu_controller/ImuController
-    # todo:different rate
+    # todo:different rate see async online
     # time
     # test high jingdu clock yanchi
 
 
 test_image_controller:
   ros__parameters:
+    update_rate: 125
     image_list: ["t265_front/image0", "t265_front/image1", "camera_front/image"]
 
 test_pose_controller:
   ros__parameters:
+    update_rate: 250
     pose_list: ["t265_front/pose"]
 
 test_imu_controller:
   ros__parameters:
+    update_rate: 250
     imu_list: ["t265_front/accel", "t265_front/gyro"]
 
 

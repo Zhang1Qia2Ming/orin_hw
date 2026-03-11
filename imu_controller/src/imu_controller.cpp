@@ -54,7 +54,10 @@ namespace imu_controller {
             } else {
                 // unknown suffix
             }
+            // RCLCPP_INFO(get_node()->get_logger(),
+            //  "Classified imu interface: %s, suffix: %s", interface_name.c_str(), suffix.c_str());
         }
+        RCLCPP_INFO(get_node()->get_logger(), "Classified %zu imu interfaces.", imu_interface_map.size());
 
         for(auto& pair : imu_interface_map) {
             const std::string& device_name = pair.first;
@@ -88,7 +91,9 @@ namespace imu_controller {
         controller_interface::InterfaceConfiguration config;
 
         config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+        // int num = 0;
         for(const auto& ctx : imu_stream_contexts_) {
+            // num++;
             if(!ctx->interface_name.empty()) {
                 config.names.push_back(ctx->interface_name);
             } else {
@@ -96,6 +101,11 @@ namespace imu_controller {
                 config.names.push_back(ctx->gyro_interface_name);
             }
         }
+        // RCLCPP_INFO(get_node()->get_logger(), "Classified %d state interfaces.", num);
+
+        // for(const auto& name : config.names) {
+        //     RCLCPP_INFO(get_node()->get_logger(), "State interface: %s", name.c_str());
+        // }
         return config;
     }
 
@@ -126,95 +136,127 @@ namespace imu_controller {
 
     controller_interface::return_type ImuController::update(const rclcpp::Time& time, const rclcpp::Duration& period) {
         
-        if(state_interfaces_.size() != imu_stream_contexts_.size()) {
+        size_t expected_interface_size = 0;
+        for(auto& ctx : imu_stream_contexts_) {
+            if(!ctx->interface_name.empty()) {
+                expected_interface_size++;
+            } else if(!ctx->accel_interface_name.empty() && !ctx->gyro_interface_name.empty()) {
+                expected_interface_size += 2;
+            }
+        }
+        if(state_interfaces_.size() != expected_interface_size) {
             return controller_interface::return_type::OK;
         }
+
         // RCLCPP_INFO(get_node()->get_logger(), "update %zu imu streams!!!", imu_stream_contexts_.size());
         for(size_t i = 0;i< imu_stream_contexts_.size();i++) {
             auto ctx = imu_stream_contexts_[i];
 
-            double gyro_ptr_value = 0.0;
-            double accel_ptr_value = 0.0;
+            if(!ctx->interface_name.empty()) {
+                double imu_ptr_value = 0.0;
 
-            bool found_gyro_interface = false;
-            bool found_accel_interface = false;
+                bool found_imu_interface = false;
 
-            // shield for gyro
-            for (const auto& interface : state_interfaces_) {
-                if ((!ctx->gyro_interface_name.empty() && interface.get_name() == ctx->gyro_interface_name) || 
-                        (!ctx->interface_name.empty() && interface.get_name() == ctx->interface_name)) {
-                    try {
-                        gyro_ptr_value = interface.get_value();
-                        found_gyro_interface = true;
-                        break; 
-                    } catch (const std::exception& e) {
-                        RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
-                            "[%s] HW interface error: %s", ctx->gyro_interface_name.c_str(), e.what());
-                        break;
+                // shield for imu
+                for (const auto& interface : state_interfaces_) {
+                    if (interface.get_name() == ctx->interface_name) {
+                        try {
+                            imu_ptr_value = interface.get_value();
+                            found_imu_interface = true;
+                            break; 
+                        } catch (const std::exception& e) {
+                            RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                                "[%s] HW interface error: %s", ctx->interface_name.c_str(), e.what());
+                            break;
+                        }
                     }
                 }
-            }
 
-            // shield for accel
-            for (const auto& interface : state_interfaces_) {
-                if ((!ctx->accel_interface_name.empty() && interface.get_name() == ctx->accel_interface_name) || 
-                        (!ctx->interface_name.empty() && interface.get_name() == ctx->interface_name)) {
-                    try {
-                        accel_ptr_value = interface.get_value();
-                        found_accel_interface = true;
-                        break; 
-                    } catch (const std::exception& e) {
-                        RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
-                            "[%s] HW interface error: %s", ctx->accel_interface_name.c_str(), e.what());
-                        break;
-                    }
-                }
-            }
-
-            if(gyro_ptr_value == 0.0 || accel_ptr_value == 0.0) {
-                RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
-                            "[%s] HW interface error: gyro_ptr_value or accel_ptr_value is 0.0", ctx->interface_name.c_str());
-            }
-
-            if(!found_gyro_interface || !found_accel_interface || std::isnan(gyro_ptr_value) || std::isnan(accel_ptr_value) || gyro_ptr_value == 0.0 || accel_ptr_value == 0.0) {
-                continue;
-            }
-
-            sensor_base::GyroDataLayout* get_gyro_ptr = nullptr;
-            sensor_base::AccelDataLayout* get_accel_ptr = nullptr;
-            
-            std::memcpy(&get_gyro_ptr, &gyro_ptr_value, sizeof(get_gyro_ptr));
-            std::memcpy(&get_accel_ptr, &accel_ptr_value, sizeof(get_accel_ptr));
-
-            if(get_gyro_ptr == nullptr || get_accel_ptr == nullptr) {
-                continue;
-            }
-
-            // gyro for t265 hz:200, accel for t265 hz:62.5,so we choose gyro update_count
-            if(get_gyro_ptr->header.update_count > ctx->last_update_count) {
-                
-                //update local
-                ctx->last_update_count = get_gyro_ptr->header.update_count;
-
-                ImuPublishTask task;
-                task.timestamp_nanos = get_gyro_ptr->header.timestamp_nanos;
-                task.update_count = get_gyro_ptr->header.update_count;
-                std::memcpy(&task.gyro, &get_gyro_ptr->gyro, sizeof(task.gyro));
-                std::memcpy(&task.accel, &get_accel_ptr->accel, sizeof(task.accel));        
-
-                {
-                    std::lock_guard<std::mutex> lock(ctx->mutex_);
-                    ctx->queue_.push(task);
-
-                    if(ctx->queue_.size() > 10) {
-                        ctx->queue_.pop();
-                    }                   
-                }
-                ctx->cv_.notify_one();
+                // todo: /device_name/imu -> topic pub
             } else {
-                // RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
-                //             "[%s] HW interface error: update_count is not increasing", ctx->interface_name.c_str());
+                double gyro_ptr_value = 0.0;
+                double accel_ptr_value = 0.0;
+
+                bool found_gyro_interface = false;
+                bool found_accel_interface = false;
+
+                // shield for gyro
+                for (const auto& interface : state_interfaces_) {
+                    if (interface.get_name() == ctx->gyro_interface_name) {
+                        try {
+                            gyro_ptr_value = interface.get_value();
+                            found_gyro_interface = true;
+                            break; 
+                        } catch (const std::exception& e) {
+                            RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                                "[%s] HW interface error: %s", ctx->gyro_interface_name.c_str(), e.what());
+                            break;
+                        }
+                    }
+                }
+
+                // shield for accel
+                for (const auto& interface : state_interfaces_) {
+                    if (interface.get_name() == ctx->accel_interface_name) {
+                        try {
+                            accel_ptr_value = interface.get_value();
+                            found_accel_interface = true;
+                            break; 
+                        } catch (const std::exception& e) {
+                            RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                                "[%s] HW interface error: %s", ctx->accel_interface_name.c_str(), e.what());
+                            break;
+                        }
+                    }
+                }
+
+                if(gyro_ptr_value == 0.0 || accel_ptr_value == 0.0) {
+                    RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                                "HW interface error: gyro_ptr_value or accel_ptr_value is 0.0");
+                }
+
+                if(!found_gyro_interface || !found_accel_interface || std::isnan(gyro_ptr_value) || std::isnan(accel_ptr_value) || gyro_ptr_value == 0.0 || accel_ptr_value == 0.0) {
+                    continue;
+                }
+
+                // /device_name/gyro + /device_name/accel -> topic pub
+                sensor_base::GyroDataLayout* get_gyro_ptr = nullptr;
+                sensor_base::AccelDataLayout* get_accel_ptr = nullptr;
+                
+                std::memcpy(&get_gyro_ptr, &gyro_ptr_value, sizeof(get_gyro_ptr));
+                std::memcpy(&get_accel_ptr, &accel_ptr_value, sizeof(get_accel_ptr));
+
+                if(get_gyro_ptr == nullptr || get_accel_ptr == nullptr) {
+                    continue;
+                }
+
+                // gyro for t265 hz:200, accel for t265 hz:62.5,so we choose gyro update_count
+                if(get_gyro_ptr->header.update_count > ctx->last_update_count) {
+                    
+                    //update local
+                    ctx->last_update_count = get_gyro_ptr->header.update_count;
+
+                    ImuPublishTask task;
+                    task.timestamp_nanos = get_gyro_ptr->header.timestamp_nanos;
+                    task.update_count = get_gyro_ptr->header.update_count;
+                    std::memcpy(&task.gyro, &get_gyro_ptr->gyro, sizeof(task.gyro));
+                    std::memcpy(&task.accel, &get_accel_ptr->accel, sizeof(task.accel));        
+
+                    {
+                        std::lock_guard<std::mutex> lock(ctx->mutex_);
+                        ctx->queue_.push(task);
+
+                        if(ctx->queue_.size() > 10) {
+                            ctx->queue_.pop();
+                        }                   
+                    }
+                    ctx->cv_.notify_one();
+                } else {
+                    // RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                    //             "[%s] HW interface error: update_count is not increasing", ctx->interface_name.c_str());
+                }
             }
+            
         }
 
         return controller_interface::return_type::OK;
