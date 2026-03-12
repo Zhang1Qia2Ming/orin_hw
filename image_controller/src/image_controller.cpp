@@ -1,6 +1,8 @@
 #include "image_controller/image_controller.hpp"
 #include "sensor_base/data_layouts.hpp"
 
+#include "pthread.h"
+
 namespace image_controller {
     ImageController::ImageController() : controller_interface::ControllerInterface() {}
 
@@ -24,14 +26,27 @@ namespace image_controller {
             image_stream_context->interface_name = interface_name;
             image_stream_context->topic_name = interface_name;
 
-            image_stream_context->image_pub_ = get_node()->create_publisher<sensor_msgs::msg::Image>(
-                image_stream_context->topic_name, 10);
-            
-            image_stream_context->queue_ = std::queue<ImagePublishTask>();
+            if(params_.image_config.image_list_map.count(interface_name) != 0) {
+                image_stream_context->config = params_.image_config.image_list_map.at(interface_name);
+            } else {
+                // error
+            }
+
+            if(image_stream_context->config.publish_raw) {
+                image_stream_context->image_raw_pub_ = get_node()->create_publisher<sensor_msgs::msg::Image>(
+                    image_stream_context->topic_name + "/raw", 10);
+            }
+            if(image_stream_context->config.publish_undistorted) {
+                image_stream_context->image_undistorted_pub_ = get_node()->create_publisher<sensor_msgs::msg::Image>(
+                    image_stream_context->topic_name + "/undistorted", 10);
+            }
 
             image_stream_contexts_.push_back(image_stream_context);
 
-            RCLCPP_INFO(get_node()->get_logger(), "Configured stream: %s", interface_name.c_str());
+            RCLCPP_INFO(get_node()->get_logger(), "Configured stream: %s; Raw: %s; Undistorted: %s", 
+                        interface_name.c_str(), 
+                        image_stream_context->config.publish_raw ? "Yes" : "No", 
+                        image_stream_context->config.publish_undistorted ? "Yes" : "No");
         }
 
         return controller_interface::CallbackReturn::SUCCESS;
@@ -40,12 +55,18 @@ namespace image_controller {
     controller_interface::CallbackReturn ImageController::on_activate(const rclcpp_lifecycle::State& previous_state) {
         is_running_ = true;
 
+        int processer_count = 1;
         for(auto& ctx : image_stream_contexts_) {
             ctx->last_update_count = 0;
-            ctx->thread_ = std::thread(&ImageController::worker_thread, this, ctx);
+          
+            for(int i = 0;i<processer_count;i++) {
+                ctx->processed_threads_.emplace_back(std::thread(&ImageController::processor_thread, this, ctx));
+            }
+
+            ctx->publish_thread_ = std::thread(&ImageController::publisher_thread, this, ctx);
         }
 
-        RCLCPP_INFO(get_node()->get_logger(), "Image stream activated ! %zu worker threads started.", image_stream_contexts_.size());
+        RCLCPP_INFO(get_node()->get_logger(), "Image stream activated ! %zu publisher threads started, %zu processed threads started.", image_stream_contexts_.size(), image_stream_contexts_.size()*processer_count);
         return controller_interface::CallbackReturn::SUCCESS;
     }
 
@@ -70,14 +91,30 @@ namespace image_controller {
 
         for(auto& ctx : image_stream_contexts_) {
             ctx->cv_.notify_all();
-            if(ctx->thread_.joinable()) {
-                ctx->thread_.join();
-            }
+            ctx->processed_cv_.notify_all();
 
-            std::queue<ImagePublishTask> empty_queue;
+            // join processed threads
+            for(auto& thread : ctx->processed_threads_) {
+                if(thread.joinable()) {
+                    thread.join();
+                }
+            }
+            ctx->processed_threads_.clear();
+
+            // join publisher thread
+            if(ctx->publish_thread_.joinable()) {
+                ctx->publish_thread_.join();
+            }
+            
+            // clear queues safely
             {
                 std::lock_guard<std::mutex> lock(ctx->mutex_);
-                std::swap(ctx->queue_, empty_queue);
+                ctx->queue_.clear();
+            }
+            {
+                std::lock_guard<std::mutex> lock(ctx->processor_mutex_);
+                ctx->processed_queue_raw.clear();
+                ctx->processed_queue_undistorted.clear();
             }
         }
 
@@ -138,10 +175,10 @@ namespace image_controller {
 
                 {
                     std::lock_guard<std::mutex> lock(ctx->mutex_);
-                    ctx->queue_.push(task);
+                    ctx->queue_.push_back(std::move(task));
 
                     if(ctx->queue_.size() > 10) {
-                        ctx->queue_.pop();
+                        ctx->queue_.pop_front();
                     }                   
                 }
                 ctx->cv_.notify_one();
@@ -151,12 +188,15 @@ namespace image_controller {
         return controller_interface::return_type::OK;
     }
 
-    void ImageController::worker_thread(std::shared_ptr<ImageStreamContext> ctx) {
+    void ImageController::processor_thread(std::shared_ptr<ImageStreamContext> ctx) {
+        // set_thread_name(ctx->interface_name + "_processor_thread");
+        
         while(is_running_) {
-            
             ImagePublishTask task;
             {
                 std::unique_lock<std::mutex> lock(ctx->mutex_);
+
+                // wait for new task or stop signal
                 ctx->cv_.wait(lock, [&ctx, this] {
                     return !ctx->queue_.empty() || !is_running_;
                 });
@@ -164,34 +204,108 @@ namespace image_controller {
                 if(!is_running_ && ctx->queue_.empty()) {
                     break;
                 }
-                task = ctx->queue_.front();
-                ctx->queue_.pop();
+                task = std::move(ctx->queue_.front());
+                ctx->queue_.pop_front();
             }
 
             if(task.image.empty()) {
                 continue;
             }
 
+            // lazy init maps
+            if(!ctx->map_initialized) {
+                init_maps(ctx, task.image.size());
+            }
+            cv::Mat processed_image;
+            cv::remap(task.image, processed_image, ctx->map1, ctx->map2, cv::INTER_LINEAR);
+
+            //header
             std_msgs::msg::Header header;
             header.stamp.sec = task.timestamp_nanos / 1000000000ULL;
             header.stamp.nanosec = task.timestamp_nanos % 1000000000ULL;
-
             header.frame_id = ctx->interface_name.substr(0, ctx->interface_name.find("/"));
 
-            std::string encoding;
-            int channels = task.image.channels();
-            if(channels == 1) {
-                encoding = "mono8";
-            } else {
-                encoding = "bgr8";
-            }
+            std::string encoding = (processed_image.channels() == 1) ? "mono8" : "bgr8";
+
+            sensor_msgs::msg::Image::SharedPtr raw_img;
+            sensor_msgs::msg::Image::SharedPtr undistorted_img;
+
             try {
-                auto msg = cv_bridge::CvImage(header, encoding, task.image).toImageMsg();
-                ctx->image_pub_->publish(*msg);
+                if(ctx->config.publish_raw) {
+                    raw_img = cv_bridge::CvImage(header, encoding, std::move(task.image)).toImageMsg();
+                }
+                if(ctx->config.publish_undistorted) {
+                    undistorted_img = cv_bridge::CvImage(header, encoding, processed_image).toImageMsg();
+                }
             } catch(const cv_bridge::Exception& e) {
                 RCLCPP_ERROR(get_node()->get_logger(), "cv_bridge exception: %s", e.what());
+                continue;
+            }
+
+            // push to processor queue
+            {
+                std::lock_guard<std::mutex> lock(ctx->processor_mutex_);
+                if(ctx->processed_queue_raw.size() > 10) {
+                    ctx->processed_queue_raw.pop_front();
+                }
+                if(ctx->processed_queue_undistorted.size() > 10) {
+                    ctx->processed_queue_undistorted.pop_front();
+                }
+                if(raw_img) {
+                    ctx->processed_queue_raw.push_back(raw_img);
+                }
+                if(undistorted_img) {
+                    ctx->processed_queue_undistorted.push_back(undistorted_img);
+                }
+            }
+            ctx->processed_cv_.notify_one();
+        }
+    }
+
+    void ImageController::publisher_thread(std::shared_ptr<ImageStreamContext> ctx) {
+        // set_thread_name(ctx->interface_name + "_publisher_thread");
+        while(is_running_) {
+            
+            sensor_msgs::msg::Image::SharedPtr msg_raw = nullptr;
+            sensor_msgs::msg::Image::SharedPtr msg_undistorted = nullptr;
+            {
+                std::unique_lock<std::mutex> lock(ctx->processor_mutex_);
+                
+                ctx->processed_cv_.wait(lock, [&] {
+                    return !ctx->processed_queue_raw.empty() || !ctx->processed_queue_undistorted.empty() || !is_running_;
+                });
+                if(!ctx->processed_queue_raw.empty()) {
+                    msg_raw = ctx->processed_queue_raw.front();
+                    ctx->processed_queue_raw.pop_front();
+                }
+                if(!ctx->processed_queue_undistorted.empty()) {
+                    msg_undistorted = ctx->processed_queue_undistorted.front();
+                    ctx->processed_queue_undistorted.pop_front();
+                }
+            }
+
+            try {
+                if(ctx->config.publish_raw && msg_raw) {
+                    ctx->image_raw_pub_->publish(*msg_raw);
+                }
+
+                if(ctx->config.publish_undistorted && msg_undistorted) {
+                    ctx->image_undistorted_pub_->publish(*msg_undistorted);
+                }
+            } catch(const cv_bridge::Exception& e) {
+                RCLCPP_ERROR(get_node()->get_logger(), "pub img failed: %s", e.what());
             }
         }
     }
+
+    void ImageController::init_maps(std::shared_ptr<ImageStreamContext> ctx, cv::Size image_size) {
+        cv::Mat K = cv::Mat(3, 3, CV_64F, ctx->config.intrinsic_matrix.data());
+        cv::Mat D = cv::Mat(ctx->config.distortion.size(), 1, CV_64F, ctx->config.distortion.data());
+
+        cv::initUndistortRectifyMap(K, D, cv::Mat(), K, image_size, CV_32FC1, ctx->map1, ctx->map2);
+
+        ctx->map_initialized = true;
+    }
+
 } // namespace image_controller
 

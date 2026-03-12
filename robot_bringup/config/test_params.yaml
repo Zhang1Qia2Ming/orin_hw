@@ -16,6 +16,29 @@ test_image_controller:
   ros__parameters:
     update_rate: 125
     image_list: ["t265_front/image0", "t265_front/image1", "camera_front/image"]
+    
+    image_config:
+      "t265_front/image0":
+        publish_raw: true
+        publish_undistorted: true
+        intrinsic_matrix: [329.0,0.0,424.0,0.0,328.0,416.0,0.0,0.0,1.0]
+        distortion: [-0.21,0.027,-0.003,0.00212,0.0]
+        extrinsics: [0.0,0.0,0.0,0.0,0.0,0.0]
+
+      "t265_front/image1":
+        publish_raw: true
+        publish_undistorted: true
+        intrinsic_matrix: [848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0]
+        distortion: [-0.001,0.002,0.0,0.0,0.0]
+        extrinsics: [0.0,0.0,0.0,0.0,0.0,0.0]
+
+      "camera_front/image":
+        publish_raw: true
+        publish_undistorted: true
+        intrinsic_matrix: [848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0]
+        distortion: [0.0,0.0,0.0,0.0,0.0]
+        extrinsics: [0.0,0.0,0.0,0.0,0.0,0.0]
+
 
 test_pose_controller:
   ros__parameters:

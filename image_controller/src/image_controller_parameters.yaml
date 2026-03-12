@@ -5,8 +5,36 @@ image_controller:
     description: "List of image topics, each topic should be in the format of 'device_name/image_name'"
 
 
-  # members:
-  #   __map_image_list:
-  #     enable:
-  #       type: bool
-  #       default_value: true
+  image_config:
+    __map_image_list:
+      enable_undistort:
+        type: bool
+        default_value: false
+        description: "Enable undistort image"
+      publish_raw:
+        type: bool
+        default_value: false
+        description: "Publish raw image"
+      publish_undistorted:
+        type: bool
+        default_value: false
+        description: "Publish undistorted image"
+      intrinsic_matrix:
+        type: double_array
+        default_value: [848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0]
+        description: "Intrinsic matrix of the camera"
+      distortion:
+        type: double_array
+        default_value: [0,0,0,0,0]
+        description: "Distortion coefficients of the camera"
+      extrinsics:
+        type: double_array
+        default_value: [0,0,0,0,0,0]
+        description: "Extrinsics matrix of the camera"
+      
+      # <param name="intrinsic_matrix">848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0</param>
+      #   <param name="distortion">0,0,0,0,0</param>
+      #   <param name="extrinsics">0,0,0,0,0,0</param>
+
+
+  # add algrithm to choose
