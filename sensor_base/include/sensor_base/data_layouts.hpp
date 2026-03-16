@@ -2,6 +2,7 @@
 #define SENSOR_BASE_DATA_LAYOUTS_HPP_
 
 #include <cstdint>
+#include <vector>
 
 #include <opencv2/opencv.hpp>
 
@@ -39,6 +40,25 @@ namespace sensor_base {
         uint32_t width;
         cv::Mat image;
 
+    };
+
+    //lidar data layout
+    struct LidarDataPointLayout {
+        uint32_t offset_time;
+        double x;
+        double y;
+        double z;
+        uint8_t reflectivity;
+        uint8_t tag;
+        uint8_t line;
+    };
+
+    struct LidarDataLayout {
+        SensorHeader header;
+        uint64_t timestamp_nanos;
+        uint32_t point_num;
+        uint8_t lidar_id;
+        std::vector<LidarDataPointLayout> points;
     };
 
 }  // namespace sensor_base

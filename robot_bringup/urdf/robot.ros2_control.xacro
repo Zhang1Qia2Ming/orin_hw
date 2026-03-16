@@ -57,6 +57,47 @@
 
       </hardware>
     </ros2_control>
+
+    <ros2_control name="${prefix}mid360_lidar" type="system">
+      <hardware>
+        <plugin>mid360_lidar_hardware/Mid360LidarHwInterface</plugin>
+        <param name="xfer_format">4</param>
+        <param name="multi_topic">0</param>
+        <param name="data_src">0</param>
+        <param name="publish_freq">10.0</param>
+        <param name="output_type">0</param>
+        <param name="frame_id">livox_frame</param>
+        <param name="lvx_file_path">/home/livox/livox_test.lvx</param>
+        <param name="cmdline_bd_code">livox0000000001</param>
+        <param name="lidar_type">8</param>
+        <param name="lidar_ip">192.168.1.168</param>
+        <param name="lidar.cmd_data_port">56100</param>
+        <param name="lidar.publish_msg_port">56200</param>
+        <param name="lidar.point_data_port">56300</param>
+        <param name="lidar.imu_data_port">56400</param>
+        <param name="lidar.log_data_port">56500</param>
+        <param name="host_ip">192.168.1.50</param>
+        <param name="host.cmd_data_port">56101</param>
+        <param name="host.publish_msg_port">56201</param>
+        <param name="host.point_data_port">56301</param>
+        <param name="host.imu_data_port">56401</param>
+        <param name="host.log_data_port">56501</param>
+        <param name="pcl_data_type">1</param>
+        <param name="pattern_mode">0</param>
+        <param name="extrinsic_parameter">0.0,0.0,0.0,0,0,0</param>
+
+
+        <param name="enable">true</param>
+        <param name="sensor_components">imu_imu;pose_pose;image_fisheye0;image_fisheye1</param>
+        <param name="interface_name"></param>
+
+        <sensor>
+          <state_interface name="lidar"/>
+          <state_interface name="imu"/>
+        </sensor>
+
+      </hardware>
+    </ros2_control>
     
   </xacro:macro>
 </robot>
