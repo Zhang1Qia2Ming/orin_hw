@@ -17,6 +17,10 @@ typedef enum {
     kLivoxLidarType = 8
 } LidarProtoType;
 
+/** Device Line Number **/
+const uint8_t kLineNumberDefault = 1;
+const uint8_t kLineNumberMid360 = 4;
+const uint8_t kLineNumberHAP = 6;  
 
 /* About Extrinsic Parameter */
 typedef struct {
@@ -62,6 +66,18 @@ typedef struct {
     uint32_t points_num;
     std::vector<PointXyzlt> points;
 } StoragePacket;
+
+typedef struct {
+  LidarProtoType lidar_type;
+  uint32_t handle;
+  bool extrinsic_enable;
+  uint32_t point_num;
+  uint8_t data_type;
+  uint8_t line_num;
+  uint64_t time_stamp;
+  uint64_t point_interval;
+  std::vector<uint8_t> raw_data;
+} RawPacket;
 
 typedef struct {
     StoragePacket *storage_packet;

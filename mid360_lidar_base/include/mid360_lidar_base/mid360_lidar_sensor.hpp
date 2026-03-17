@@ -54,16 +54,28 @@ struct Mid360LidarConfig {
     // extrinsic
     // roll pitch yaw x y z
     double extrinsic_parameter[6];
+    bool is_extrinsic_set = false;
+    float TranslationVector[3] = {0.0f, 0.0f, 0.0f}; /**< x, y, z translation, unit: mm. */
+    float RotationMatrix[3][3] = 
+        {
+            {0.0f, 0.0f, 0.0f}, 
+            {0.0f, 0.0f, 0.0f}, 
+            {0.0f, 0.0f, 0.0f}};
 };
 
 struct Mid360LidarData {
     // lidar data
-    LidarDataLayout data;
+    LidarDataLayout lidar_data;
+    GyroDataLayout gyro_data;
+    AccelDataLayout accel_data;
 };
 
 
 class Mid360LidarSensor : public SensorBase {
 public:
+
+    // using PointCloudsCallback = std::function<void(*, void *)>;
+    // using ImuDataCallback = std::function<void(*, void *)>;
 
     // double buffer: data_1_ and data_2_
     Mid360LidarData data_1_;
@@ -87,9 +99,21 @@ public:
     bool update_buffer2();
     void point_cloud_poll_thread();
     void imu_poll_thread();
+    // void SetPointCloudsCallback(PointCloudsCallback callback, void *user_data);
+    // void SetImuDataCallback(ImuDataCallback callback, void *user_data);
+
+    static void onLivoxLidarPointCloudCallback( uint32_t handle, 
+                                                const uint8_t dev_type,
+                                                LivoxLidarEthernetPacket *data, 
+                                                void *client_data);
+
+    void enqueueRawPacket(  uint32_t handle, 
+                            const uint8_t dev_type, 
+                            LivoxLidarEthernetPacket *data);
 
 protected:
     void main_loop() override;
+    void set_extrinsic_parameter();
             
 private:
 
@@ -98,6 +122,12 @@ private:
     std::string name_;
     // connect state: 
     LidarConnectState connect_state_ = kConnectStateOff;
+
+    // PointCloudsCallback point_clouds_callback_;
+    // void *point_clouds_user_data_ = nullptr;
+
+    // ImuDataCallback imu_data_callback_;
+    // void *imu_data_user_data_ = nullptr;
 
     // config
     Mid360LidarConfig config_;
