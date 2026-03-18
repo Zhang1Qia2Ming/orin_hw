@@ -1,0 +1,9 @@
+<library path="lidar_controller">
+  <class name="lidar_controller/LidarController"
+         type="lidar_controller::LidarController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Controller for publishing lidar point clouds.
+    </description>
+  </class>
+</library>

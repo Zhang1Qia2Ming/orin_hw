@@ -1,0 +1,6 @@
+lidar_controller:
+  lidar_list:
+    type: string_array
+    default_value: ["mid360_front/lidar"]
+    description: "List of lidar topics, each topic should be in the format of 'device_name/lidar_name'"
+

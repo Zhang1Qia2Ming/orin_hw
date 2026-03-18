@@ -1,0 +1,9 @@
+<library path="mid360_lidar_hardware">
+  <class name="mid360_lidar_hardware/Mid360LidarHwInterface"
+         type="mid360_lidar_hardware::Mid360LidarHwInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control hardware interface for Mid360 Lidar.
+    </description>
+  </class>
+</library>

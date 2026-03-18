@@ -58,7 +58,7 @@
       </hardware>
     </ros2_control>
 
-    <ros2_control name="${prefix}mid360_lidar" type="system">
+    <ros2_control name="${prefix}mid360_front" type="system">
       <hardware>
         <plugin>mid360_lidar_hardware/Mid360LidarHwInterface</plugin>
         <param name="xfer_format">4</param>
@@ -68,7 +68,7 @@
         <param name="output_type">0</param>
         <param name="frame_id">livox_frame</param>
         <param name="lvx_file_path">/home/livox/livox_test.lvx</param>
-        <param name="cmdline_bd_code">livox0000000001</param>
+        <param name="cmdline_input_bd_code">livox0000000001</param>
         <param name="lidar_type">8</param>
         <param name="lidar_ip">192.168.1.168</param>
         <param name="lidar.cmd_data_port">56100</param>
@@ -88,7 +88,7 @@
 
 
         <param name="enable">true</param>
-        <param name="sensor_components">imu_imu;pose_pose;image_fisheye0;image_fisheye1</param>
+        <param name="sensor_components">lidar_lidar;imu_imu</param>
         <param name="interface_name"></param>
 
         <sensor>

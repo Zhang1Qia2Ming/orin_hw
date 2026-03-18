@@ -2,6 +2,7 @@
 #include "sensor_base/sensor_base.hpp"
 #include "mid360_lidar_base/comm.hpp"
 // #include "mid360_lidar_base/pub_handler.h"
+#include <algorithm>
 
 namespace sensor_base {
     
@@ -17,6 +18,9 @@ Mid360LidarSensor::~Mid360LidarSensor() {
 
 bool Mid360LidarSensor::init(const Mid360LidarConfig & config)
 {
+    front_buffer_ptr_ = &data_1_;
+    back_buffer_ptr_ = &data_2_;
+
     config_ = config;
     data_1_ = Mid360LidarData();
     // data_1_.pose.header.update_count = 0;
@@ -211,7 +215,7 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
                 double dt_sec = static_cast<double>(dt_ns) / 1e9;
                 double real_freq = imu_count / dt_sec;
                 
-                RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "imu freq: %f", real_freq);
+                // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "imu freq: %f", real_freq);
                 last_imu_ts = ts;
                 imu_count = 0;
             }
@@ -337,9 +341,9 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
                 double real_frame_freq = aggregated_frame_count / dt_sec;
                 
                 // 打印绿色高亮：帧频率与实际耗时
-                RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), 
-                            "\033[32m[Mid360] PointCloud Frame Freq: %.2f Hz | Frame Time: %.2f ms\033[0m", 
-                            real_frame_freq, actual_frame_time_ms);
+                // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), 
+                //             "\033[32m[Mid360] PointCloud Frame Freq: %.2f Hz | Frame Time: %.2f ms\033[0m", 
+                //             real_frame_freq, actual_frame_time_ms);
                 
                 last_frame_report_ts = ts;
                 aggregated_frame_count = 0;
@@ -372,17 +376,39 @@ void Mid360LidarSensor::RawDataProcess() {
             current_frame = std::move(raw_packet_queue_.front());
             raw_packet_queue_.pop_front();
         }
+        back_buffer_ptr_->lidar_data.points.clear();
         for(auto& pkt : current_frame) {
-            PointCloudProcess(pkt);
+            PointCloudProcess(pkt, back_buffer_ptr_->lidar_data.points);
         }
-        RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "timestamp now: %ld", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+        // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "timestamp now: %ld", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         
+        back_buffer_ptr_->lidar_data.point_num = back_buffer_ptr_->lidar_data.points.size();
+        // ping pong
+        {
+            std::lock_guard<std::mutex> lock(buffer_swap_mutex_);
+            std::swap(front_buffer_ptr_, back_buffer_ptr_);
+            is_new_frame_ready_ = true;
+        }
+        buffer_ready_cv_.notify_one();
+        // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), 
+        //     "Ping Pong Swapped! front buffer point num: %d", front_buffer_ptr_->lidar_data.point_num);
+        // if(is_write_data_1_.load()) {
+        //     data_1_.lidar_data.point_num = points_clouds_.size();
+        //     data_1_.lidar_data.points.swap(points_clouds_);
+        //     RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "data 1 point num: %d", GetLidarPointCloudsSize(data_1_));
+        //     is_write_data_1_.store(false);
+        // } else {
+        //     data_2_.lidar_data.point_num = points_clouds_.size();
+        //     data_2_.lidar_data.points.swap(points_clouds_);
+        //     RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "data 2 point num: %d", GetLidarPointCloudsSize(data_2_));
+        //     is_write_data_1_.store(true);
+        // }
     }
 }
 
-void Mid360LidarSensor::PointCloudProcess(RawPacket& raw_data) {
+void Mid360LidarSensor::PointCloudProcess(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer) {
     if (raw_data.lidar_type == LidarProtoType::kLivoxLidarType) {
-        LivoxLidarPointCloudProcess(raw_data);
+        LivoxLidarPointCloudProcess(raw_data, target_buffer);
     } else {
     static bool flag = false;
     if (!flag) {
@@ -393,16 +419,16 @@ void Mid360LidarSensor::PointCloudProcess(RawPacket& raw_data) {
   }
 }
 
-void Mid360LidarSensor::LivoxLidarPointCloudProcess(RawPacket& raw_data) {
+void Mid360LidarSensor::LivoxLidarPointCloudProcess(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer) {
     switch (raw_data.data_type) {
         case kLivoxLidarCartesianCoordinateHighData:
-            ProcessCartesianHighPoint(raw_data);   
+            ProcessCartesianHighPoint(raw_data, target_buffer);   
             break;
         case kLivoxLidarCartesianCoordinateLowData:
-            ProcessCartesianLowPoint(raw_data);
+            ProcessCartesianLowPoint(raw_data, target_buffer);
             break;
         case kLivoxLidarSphericalCoordinateData:
-            ProcessSphericalPoint(raw_data);
+            ProcessSphericalPoint(raw_data, target_buffer);
             break;
         default:
             std::cout << "unknown data type: " << static_cast<int>(raw_data.data_type)
@@ -411,18 +437,75 @@ void Mid360LidarSensor::LivoxLidarPointCloudProcess(RawPacket& raw_data) {
     }
 }
 
-void Mid360LidarSensor::ProcessCartesianHighPoint(RawPacket& raw_data) {
+void Mid360LidarSensor::ProcessCartesianHighPoint(RawPacket& pkt, std::vector<LidarDataPointLayout>& target_buffer) {
+    
+    LivoxLidarCartesianHighRawPoint* points = reinterpret_cast<LivoxLidarCartesianHighRawPoint*>(pkt.raw_data.data());
+    
+    target_buffer.reserve(pkt.point_num);
 
+    // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "cartesian high point function");
+    LidarDataPointLayout point = {};
+    {
+        // std::lock_guard<std::mutex> lock(points_clouds_mutex_);
+        for(uint32_t i = 0; i < pkt.point_num; i++) {
+            if (pkt.extrinsic_enable) {
+                point.x = points[i].x / 1000.0;
+                point.y = points[i].y / 1000.0;
+                point.z = points[i].z / 1000.0;
+            } else {
+                point.x = (points[i].x * config_.RotationMatrix[0][0] +
+                            points[i].y * config_.RotationMatrix[0][1] +
+                            points[i].z * config_.RotationMatrix[0][2] + config_.TranslationVector[0]) /
+                            1000.0;
+                point.y = (points[i].x * config_.RotationMatrix[1][0] +
+                            points[i].y * config_.RotationMatrix[1][1] +
+                            points[i].z * config_.RotationMatrix[1][2] + config_.TranslationVector[1]) /
+                            1000.0;
+                point.z = (points[i].x * config_.RotationMatrix[2][0] +
+                            points[i].y * config_.RotationMatrix[2][1] +
+                            points[i].z * config_.RotationMatrix[2][2] + config_.TranslationVector[2]) /
+                            1000.0;
+            }
+            point.intensity = points[i].reflectivity;
+            point.line = i % pkt.line_num;
+            point.tag = points[i].tag;
+            point.offset_time = pkt.time_stamp + i * pkt.point_interval;
+            target_buffer.push_back(point);
+        }
+    }
+    return;
 }
 
-void Mid360LidarSensor::ProcessCartesianLowPoint(RawPacket& raw_data) {
-
+void Mid360LidarSensor::ProcessCartesianLowPoint(RawPacket& pkt, std::vector<LidarDataPointLayout>& target_buffer) {
+    LivoxLidarCartesianLowRawPoint* points = reinterpret_cast<LivoxLidarCartesianLowRawPoint*>(pkt.raw_data.data());
+    RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "cartesian low point function");
+    // todo: add cartesian low point process
 }
 
-void Mid360LidarSensor::ProcessSphericalPoint(RawPacket& raw_data) {
-
+void Mid360LidarSensor::ProcessSphericalPoint(RawPacket& pkt, std::vector<LidarDataPointLayout>& target_buffer) {
+    LivoxLidarSpherPoint* points = reinterpret_cast<LivoxLidarSpherPoint*>(pkt.raw_data.data());
+    RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "spherical point function");
+    // todo: add spherical point process
 }
 
+void Mid360LidarSensor::SetWriteData1(bool is_write) {
+    is_write_data_1_.store(is_write);
+}
+
+uint32_t Mid360LidarSensor::GetLidarPointCloudsSize(Mid360LidarData& lidar_data_block) {
+    return lidar_data_block.lidar_data.point_num;
+}
+
+bool Mid360LidarSensor::PullFrontBufferPointer(Mid360LidarData** out_front_ptr) {
+    std::unique_lock<std::mutex> lock(buffer_swap_mutex_, std::try_to_lock);
+    if(!lock || !is_new_frame_ready_) {
+        return false;
+    }
+    is_new_frame_ready_ = false;
+    *out_front_ptr = front_buffer_ptr_;
+
+    return true;
+}
 
 
 } // namespace sensor_base
@@ -456,3 +539,62 @@ void Mid360LidarSensor::ProcessSphericalPoint(RawPacket& raw_data) {
 //   uint64_t point_interval;
 //   std::vector<uint8_t> raw_data;
 // } RawPacket;
+
+
+
+// typedef struct {
+//   int32_t x;            /**< X axis, Unit:mm */
+//   int32_t y;            /**< Y axis, Unit:mm */
+//   int32_t z;            /**< Z axis, Unit:mm */
+//   uint8_t reflectivity; /**< Reflectivity */
+//   uint8_t tag;          /**< Tag */
+// } LivoxLidarCartesianHighRawPoint;
+
+// typedef struct {
+//   int16_t x;            /**< X axis, Unit:cm */
+//   int16_t y;            /**< Y axis, Unit:cm */
+//   int16_t z;            /**< Z axis, Unit:cm */
+//   uint8_t reflectivity; /**< Reflectivity */
+//   uint8_t tag;          /**< Tag */
+// } LivoxLidarCartesianLowRawPoint;
+
+// typedef struct {
+//   uint32_t depth;
+//   uint16_t theta;
+//   uint16_t phi;
+//   uint8_t reflectivity;
+//   uint8_t tag;
+// } LivoxLidarSpherPoint;
+
+// typedef struct {
+//   float x;            /**< X axis, Unit:m */
+//   float y;            /**< Y axis, Unit:m */
+//   float z;            /**< Z axis, Unit:m */
+//   float reflectivity; /**< Reflectivity   */
+//   uint8_t tag;        /**< Livox point tag   */
+//   uint8_t line;       /**< Laser line id     */
+//   double timestamp;   /**< Timestamp of point*/
+// } LivoxPointXyzrtlt;
+
+// typedef struct {
+//   float x;
+//   float y;
+//   float z;
+//   float intensity;
+//   uint8_t tag;
+//   uint8_t line;
+//   uint64_t offset_time;
+// } PointXyzlt;
+
+// typedef struct {
+//   uint32_t handle;
+//   uint8_t lidar_type; ////refer to LivoxLidarType
+//   uint32_t points_num;
+//   PointXyzlt* points;
+// } PointPacket;
+
+// typedef struct {
+//   uint64_t base_time[kMaxSourceLidar] {};
+//   uint8_t lidar_num {};
+//   PointPacket lidar_point[kMaxSourceLidar] {};
+// } PointFrame;

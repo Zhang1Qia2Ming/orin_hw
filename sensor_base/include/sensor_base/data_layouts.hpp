@@ -44,13 +44,13 @@ namespace sensor_base {
 
     //lidar data layout
     struct LidarDataPointLayout {
-        uint32_t offset_time;
-        double x;
-        double y;
-        double z;
-        uint8_t reflectivity;
+        float x;
+        float y;
+        float z;
+        float intensity;
         uint8_t tag;
         uint8_t line;
+        uint64_t offset_time;
     };
 
     struct LidarDataLayout {

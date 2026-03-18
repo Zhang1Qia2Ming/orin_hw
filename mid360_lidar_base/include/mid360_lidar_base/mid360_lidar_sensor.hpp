@@ -78,10 +78,20 @@ public:
 
     // using PointCloudsCallback = std::function<void(*, void *)>;
     // using ImuDataCallback = std::function<void(*, void *)>;
+    using TimePoint = std::chrono::high_resolution_clock::time_point;
+
 
     // double buffer: data_1_ and data_2_
     Mid360LidarData data_1_;
     Mid360LidarData data_2_;
+
+    Mid360LidarData* front_buffer_ptr_ = nullptr;
+    Mid360LidarData* back_buffer_ptr_ = nullptr;
+    std::mutex buffer_swap_mutex_;
+    std::condition_variable buffer_ready_cv_;
+    bool is_new_frame_ready_ = false;
+
+    double lidar_ptr_as_double_ = 0.0;
 
     // pointer
 
@@ -114,12 +124,15 @@ public:
                             LivoxLidarEthernetPacket *data);
     
     void RawDataProcess();
-    void PointCloudProcess(RawPacket& raw_data);
-    void LivoxLidarPointCloudProcess(RawPacket& raw_data);
-    void ProcessCartesianHighPoint(RawPacket& raw_data);
-    void ProcessCartesianLowPoint(RawPacket& raw_data);
-    void ProcessSphericalPoint(RawPacket& raw_data);
+    void PointCloudProcess(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer);
+    void LivoxLidarPointCloudProcess(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer);
+    void ProcessCartesianHighPoint(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer);
+    void ProcessCartesianLowPoint(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer);
+    void ProcessSphericalPoint(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer);
 
+    void SetWriteData1(bool is_write);
+    uint32_t GetLidarPointCloudsSize(Mid360LidarData& lidar_data_block);
+    bool PullFrontBufferPointer(Mid360LidarData** out_front_ptr);
 
 protected:
     void main_loop() override;
@@ -134,7 +147,12 @@ private:
     LidarConnectState connect_state_ = kConnectStateOff;
     std::thread process_thread_;
     std::atomic<bool> is_running_{false};
+    std::atomic<bool> is_write_data_1_{false};
+    TimePoint last_pub_time_;
 
+    uint64_t publish_interval_ = 100000000; //100 ms
+    uint64_t publish_interval_tolerance_ = 100000000; //100 ms
+    uint64_t publish_interval_ms_ = 100; //100 ms
     // PointCloudsCallback point_clouds_callback_;
     // void *point_clouds_user_data_ = nullptr;
 
@@ -149,6 +167,8 @@ private:
     std::deque<std::vector<RawPacket>> raw_packet_queue_;
     std::condition_variable packet_condition_;
     std::mutex packet_mutex_;
+    std::mutex points_clouds_mutex_;
+    std::vector<LidarDataPointLayout> points_clouds_;
     
 };
 
