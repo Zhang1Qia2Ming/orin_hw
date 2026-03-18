@@ -12,6 +12,8 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <mutex>
+#include <condition_variable>
 
 
 namespace sensor_base {
@@ -110,6 +112,14 @@ public:
     void enqueueRawPacket(  uint32_t handle, 
                             const uint8_t dev_type, 
                             LivoxLidarEthernetPacket *data);
+    
+    void RawDataProcess();
+    void PointCloudProcess(RawPacket& raw_data);
+    void LivoxLidarPointCloudProcess(RawPacket& raw_data);
+    void ProcessCartesianHighPoint(RawPacket& raw_data);
+    void ProcessCartesianLowPoint(RawPacket& raw_data);
+    void ProcessSphericalPoint(RawPacket& raw_data);
+
 
 protected:
     void main_loop() override;
@@ -122,6 +132,8 @@ private:
     std::string name_;
     // connect state: 
     LidarConnectState connect_state_ = kConnectStateOff;
+    std::thread process_thread_;
+    std::atomic<bool> is_running_{false};
 
     // PointCloudsCallback point_clouds_callback_;
     // void *point_clouds_user_data_ = nullptr;
@@ -133,6 +145,10 @@ private:
     Mid360LidarConfig config_;
 
     LidarExtParameter lidar_ext_param_;
+
+    std::deque<std::vector<RawPacket>> raw_packet_queue_;
+    std::condition_variable packet_condition_;
+    std::mutex packet_mutex_;
     
 };
 

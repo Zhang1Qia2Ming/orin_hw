@@ -36,11 +36,14 @@ bool Mid360LidarSensor::init(const Mid360LidarConfig & config)
     lidar_data_queue_.storage_packet = nullptr;
     lidar_data_queue_.rd_idx = 0;
     lidar_data_queue_.wr_idx = 0;
+
     return true;
 }
 
 bool Mid360LidarSensor::open_device()
 {
+
+    is_running_.store(true);
     // initialize read-lidar
     int xfer_format = config_.xfer_format;
     int multi_topic = config_.multi_topic;
@@ -101,6 +104,8 @@ bool Mid360LidarSensor::open_device()
         lidar_ext_param_.param.z = config_.extrinsic_parameter[5];
     }
     // pub_handler().AddLidarsExtParam(lidar_ext_param_);
+    process_thread_ = std::thread(&Mid360LidarSensor::RawDataProcess, this);
+
 
     return true;
 }
@@ -108,6 +113,11 @@ bool Mid360LidarSensor::open_device()
 bool Mid360LidarSensor::close_device()
 {
     // LivoxLidarRemovePointCloudObserver();
+    is_running_.store(false);
+    packet_condition_.notify_all();
+    if(process_thread_.joinable()) {
+        process_thread_.join();
+    }
     return true;
 }
 
@@ -256,6 +266,8 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
         static uint64_t current_frame_start_ts = 0;
         static uint64_t last_frame_report_ts = 0;
         static uint32_t aggregated_frame_count = 0;
+
+        static std::vector<RawPacket> local_frame_buffer_;
         
         // 1. 根据配置的发布频率计算一帧的理论周期 (纳秒)
         // 例如：publish_freq = 10.0 Hz, 周期 = 100,000,000 ns (100 ms)
@@ -264,6 +276,7 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
         if (current_frame_start_ts == 0) {
             current_frame_start_ts = ts;
             last_frame_report_ts = ts;
+            local_frame_buffer_.reserve(250);
         }
 
         // [车规级防御 1]：时间戳跳变保护 (Time Jump Protection)
@@ -273,40 +286,11 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
             current_frame_start_ts = ts;
             last_frame_report_ts = ts;
             aggregated_frame_count = 0;
+            local_frame_buffer_.clear();
         }
 
-        // 2. 检查当前包的时间戳是否跨越了“一帧”的边界
-        if (ts - current_frame_start_ts >= frame_period_ns) {
-            // ================= 【一帧攒满了】 =================
-            aggregated_frame_count++;
-            
-            // [车规级测时]：计算这“一帧”真实的跨度耗时 (毫秒)
-            double actual_frame_time_ms = static_cast<double>(ts - current_frame_start_ts) / 1e6;
-            
-            // [车规级防御 2]：严格周期推进 (消除累积误差)
-            // 不要用 current_frame_start_ts = ts; 因为 ts 可能略微超出一帧的理论时间点，
-            // 每次直接赋值 ts 会导致累积误差，最终导致掉帧。加上理论周期才是最准的。
-            current_frame_start_ts += frame_period_ns; 
-            
-            // 3. [车规级测频]：每 1 秒在终端打印一次真实的帧率
-            if (ts - last_frame_report_ts >= 1000000000ULL) {
-                double dt_sec = static_cast<double>(ts - last_frame_report_ts) / 1e9;
-                double real_frame_freq = aggregated_frame_count / dt_sec;
-                
-                // 打印绿色高亮：帧频率与实际耗时
-                RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), 
-                            "\033[32m[Mid360] PointCloud Frame Freq: %.2f Hz | Frame Time: %.2f ms\033[0m", 
-                            real_frame_freq, actual_frame_time_ms);
-                
-                last_frame_report_ts = ts;
-                aggregated_frame_count = 0;
-            }
 
-            // TODO: 这里是触发上层“帧处理”的绝佳时机！
-            // 比如通知 condition_variable，或者翻转 data_1_ 和 data_2_ 的标志位
-        }
-        // ====================================================================
-
+        // 2. 
         RawPacket pkt = {};
         pkt.handle = handle;
         pkt.lidar_type = LidarProtoType::kLivoxLidarType;
@@ -323,23 +307,122 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
 
         // [车规级防御 3]：除零保护。如果由于干扰产生了一个空包 (dot_num = 0)，程序不能崩溃
         pkt.point_interval = (data->dot_num == 0) ? 0 : (data->time_interval * 100 / data->dot_num); // ns
-        // pkt.point_interval = data->time_interval * 100 / data->dot_num; // ns
 
         // todo: fix this
         // pkt.time_stamp = GetEthPacketTimestamp(data->time_type, data->timestamp,
                                             //   sizeof(data->timestamp));
+        pkt.time_stamp = ts;
 
         uint32_t length = data->length - sizeof(LivoxLidarEthernetPacket) + 1;
-        pkt.raw_data.insert(pkt.raw_data.end(), data->data,
-                           data->data + length);
-        {
-            std::lock_guard<std::timed_mutex> lock(data_mutex_);
+        // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "raw_data size: %d", length);    1344
+        pkt.raw_data.insert(pkt.raw_data.end(), data->data, data->data + length);
+        local_frame_buffer_.push_back(pkt);
+
+
+        // 3. 检查当前包的时间戳是否跨越了“一帧”的边界
+        if (ts - current_frame_start_ts >= frame_period_ns) {
+            // ================= 【一帧攒满了】 =================
+            aggregated_frame_count++;
             
-            // todo: push into queue
+            // [车规级测时]：计算这“一帧”真实的跨度耗时 (毫秒)
+            double actual_frame_time_ms = static_cast<double>(ts - current_frame_start_ts) / 1e6;
+            
+            // [车规级防御 2]：严格周期推进 (消除累积误差)
+            // 不要用 current_frame_start_ts = ts; 因为 ts 可能略微超出一帧的理论时间点，
+            // 每次直接赋值 ts 会导致累积误差，最终导致掉帧。加上理论周期才是最准的。
+            
+            // 3. [车规级测频]：每 1 秒在终端打印一次真实的帧率
+            if (ts - last_frame_report_ts >= 1000000000ULL) {
+                double dt_sec = static_cast<double>(ts - last_frame_report_ts) / 1e9;
+                double real_frame_freq = aggregated_frame_count / dt_sec;
+                
+                // 打印绿色高亮：帧频率与实际耗时
+                RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), 
+                            "\033[32m[Mid360] PointCloud Frame Freq: %.2f Hz | Frame Time: %.2f ms\033[0m", 
+                            real_frame_freq, actual_frame_time_ms);
+                
+                last_frame_report_ts = ts;
+                aggregated_frame_count = 0;
+            }
+
+            {
+                // std::lock_guard<std::timed_mutex> lock(data_mutex_, std::defer_lock);
+                std::unique_lock<std::mutex> lock(packet_mutex_);
+                raw_packet_queue_.push_back(std::move(local_frame_buffer_));
+                packet_condition_.notify_one();
+            }
+            current_frame_start_ts += frame_period_ns;
+            local_frame_buffer_.reserve(250);
         }
+        
         return;
     }
 }
+
+void Mid360LidarSensor::RawDataProcess() {
+    
+    while(is_running_.load()){
+        std::vector<RawPacket> current_frame;
+        {
+            std::unique_lock<std::mutex> lock(packet_mutex_);
+            packet_condition_.wait(lock, [this]() { return !raw_packet_queue_.empty() || !is_running_.load(); });
+            if(!is_running_.load() && raw_packet_queue_.empty()) {
+                break;
+            }
+            current_frame = std::move(raw_packet_queue_.front());
+            raw_packet_queue_.pop_front();
+        }
+        for(auto& pkt : current_frame) {
+            PointCloudProcess(pkt);
+        }
+        RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "timestamp now: %ld", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+        
+    }
+}
+
+void Mid360LidarSensor::PointCloudProcess(RawPacket& raw_data) {
+    if (raw_data.lidar_type == LidarProtoType::kLivoxLidarType) {
+        LivoxLidarPointCloudProcess(raw_data);
+    } else {
+    static bool flag = false;
+    if (!flag) {
+      std::cout << "error, unsupported protocol type: "
+                << static_cast<int>(raw_data.lidar_type) << std::endl;
+      flag = true;
+    }
+  }
+}
+
+void Mid360LidarSensor::LivoxLidarPointCloudProcess(RawPacket& raw_data) {
+    switch (raw_data.data_type) {
+        case kLivoxLidarCartesianCoordinateHighData:
+            ProcessCartesianHighPoint(raw_data);   
+            break;
+        case kLivoxLidarCartesianCoordinateLowData:
+            ProcessCartesianLowPoint(raw_data);
+            break;
+        case kLivoxLidarSphericalCoordinateData:
+            ProcessSphericalPoint(raw_data);
+            break;
+        default:
+            std::cout << "unknown data type: " << static_cast<int>(raw_data.data_type)
+              << " !!" << std::endl;
+            break;
+    }
+}
+
+void Mid360LidarSensor::ProcessCartesianHighPoint(RawPacket& raw_data) {
+
+}
+
+void Mid360LidarSensor::ProcessCartesianLowPoint(RawPacket& raw_data) {
+
+}
+
+void Mid360LidarSensor::ProcessSphericalPoint(RawPacket& raw_data) {
+
+}
+
 
 
 } // namespace sensor_base
