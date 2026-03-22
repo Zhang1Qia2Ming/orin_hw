@@ -82,11 +82,15 @@ public:
 
 
     // double buffer: data_1_ and data_2_
+    // triple buffer: data_3_
+    // data_3_ is the ready buffer
     Mid360LidarData data_1_;
     Mid360LidarData data_2_;
+    Mid360LidarData data_3_;
 
-    Mid360LidarData* front_buffer_ptr_ = nullptr;
-    Mid360LidarData* back_buffer_ptr_ = nullptr;
+    LidarDataLayout* write_buffer_ptr_ = nullptr;
+    LidarDataLayout* ready_buffer_ptr_ = nullptr;
+    LidarDataLayout* read_buffer_ptr_ = &data_3_.lidar_data;
     std::mutex buffer_swap_mutex_;
     std::condition_variable buffer_ready_cv_;
     bool is_new_frame_ready_ = false;
@@ -131,8 +135,8 @@ public:
     void ProcessSphericalPoint(RawPacket& raw_data, std::vector<LidarDataPointLayout>& target_buffer);
 
     void SetWriteData1(bool is_write);
-    uint32_t GetLidarPointCloudsSize(Mid360LidarData& lidar_data_block);
-    bool PullFrontBufferPointer(Mid360LidarData** out_front_ptr);
+    uint32_t GetLidarPointCloudsSize(LidarDataLayout& lidar_data_block);
+    bool PullFrontBufferPointer(LidarDataLayout** out_front_ptr);
 
 protected:
     void main_loop() override;

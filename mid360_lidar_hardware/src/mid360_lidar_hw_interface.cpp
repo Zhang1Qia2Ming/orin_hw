@@ -90,12 +90,15 @@ hardware_interface::return_type Mid360LidarHwInterface::read(
     const rclcpp::Time & time, const rclcpp::Duration & period)
 {
     // todo: double buffer pointer
-    sensor_base::Mid360LidarData * latest_front_ptr = nullptr;
+    sensor_base::LidarDataLayout * latest_front_ptr = nullptr;
     if(mid360_lidar_sensor_->PullFrontBufferPointer(&latest_front_ptr))
     {
         std::memcpy(&mid360_lidar_sensor_->lidar_ptr_as_double_, &latest_front_ptr, sizeof(double));
+
+        // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarHwInterface"), "latest_front_ptr: %p", 
+        //     *reinterpret_cast<void**>(&mid360_lidar_sensor_->lidar_ptr_as_double_));
+        mid360_lidar_sensor_->update_buffer2();  // now lidar's update_buffer2 is empty function
     }
-    mid360_lidar_sensor_->update_buffer2();  // now lidar's update_buffer2 is empty function
     return hardware_interface::return_type::OK;
 }
 

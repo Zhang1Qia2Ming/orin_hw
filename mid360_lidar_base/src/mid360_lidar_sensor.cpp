@@ -18,22 +18,23 @@ Mid360LidarSensor::~Mid360LidarSensor() {
 
 bool Mid360LidarSensor::init(const Mid360LidarConfig & config)
 {
-    front_buffer_ptr_ = &data_1_;
-    back_buffer_ptr_ = &data_2_;
+    write_buffer_ptr_ = &data_1_.lidar_data;
+    ready_buffer_ptr_ = &data_2_.lidar_data;
+    read_buffer_ptr_ = &data_3_.lidar_data;
 
     config_ = config;
     data_1_ = Mid360LidarData();
-    // data_1_.pose.header.update_count = 0;
-    // data_1_.gyro.header.update_count = 0;
-    // data_1_.accel.header.update_count = 0;
-    // data_1_.fisheye0.header.update_count = 0;
-    // data_1_.fisheye1.header.update_count = 0;
+    data_1_.lidar_data.header.update_count = 0;
+    data_1_.gyro_data.header.update_count = 0;
+    data_1_.accel_data.header.update_count = 0;
     data_2_ = Mid360LidarData();
-    // data_2_.pose.header.update_count = 0;
-    // data_2_.gyro.header.update_count = 0;
-    // data_2_.accel.header.update_count = 0;
-    // data_2_.fisheye0.header.update_count = 0;
-    // data_2_.fisheye1.header.update_count = 0;
+    data_2_.lidar_data.header.update_count = 0;
+    data_2_.gyro_data.header.update_count = 0;
+    data_2_.accel_data.header.update_count = 0;
+    data_3_ = Mid360LidarData();
+    data_3_.lidar_data.header.update_count = 0;
+    data_3_.gyro_data.header.update_count = 0;
+    data_3_.accel_data.header.update_count = 0;
 
     set_extrinsic_parameter();
 
@@ -132,7 +133,7 @@ void Mid360LidarSensor::main_loop()
 
 bool Mid360LidarSensor::update_buffer2()
 {
-    // todo copy data_1_ to data_2_
+    // 
     return true;
 }
 
@@ -376,33 +377,19 @@ void Mid360LidarSensor::RawDataProcess() {
             current_frame = std::move(raw_packet_queue_.front());
             raw_packet_queue_.pop_front();
         }
-        back_buffer_ptr_->lidar_data.points.clear();
+        write_buffer_ptr_->points.clear();
         for(auto& pkt : current_frame) {
-            PointCloudProcess(pkt, back_buffer_ptr_->lidar_data.points);
+            PointCloudProcess(pkt, write_buffer_ptr_->points);
         }
         // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "timestamp now: %ld", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         
-        back_buffer_ptr_->lidar_data.point_num = back_buffer_ptr_->lidar_data.points.size();
+        write_buffer_ptr_->point_num = write_buffer_ptr_->points.size();
         // ping pong
         {
             std::lock_guard<std::mutex> lock(buffer_swap_mutex_);
-            std::swap(front_buffer_ptr_, back_buffer_ptr_);
+            std::swap(write_buffer_ptr_, ready_buffer_ptr_);
             is_new_frame_ready_ = true;
         }
-        buffer_ready_cv_.notify_one();
-        // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), 
-        //     "Ping Pong Swapped! front buffer point num: %d", front_buffer_ptr_->lidar_data.point_num);
-        // if(is_write_data_1_.load()) {
-        //     data_1_.lidar_data.point_num = points_clouds_.size();
-        //     data_1_.lidar_data.points.swap(points_clouds_);
-        //     RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "data 1 point num: %d", GetLidarPointCloudsSize(data_1_));
-        //     is_write_data_1_.store(false);
-        // } else {
-        //     data_2_.lidar_data.point_num = points_clouds_.size();
-        //     data_2_.lidar_data.points.swap(points_clouds_);
-        //     RCLCPP_INFO(rclcpp::get_logger("Mid360LidarSensor"), "data 2 point num: %d", GetLidarPointCloudsSize(data_2_));
-        //     is_write_data_1_.store(true);
-        // }
     }
 }
 
@@ -492,17 +479,18 @@ void Mid360LidarSensor::SetWriteData1(bool is_write) {
     is_write_data_1_.store(is_write);
 }
 
-uint32_t Mid360LidarSensor::GetLidarPointCloudsSize(Mid360LidarData& lidar_data_block) {
-    return lidar_data_block.lidar_data.point_num;
+uint32_t Mid360LidarSensor::GetLidarPointCloudsSize(LidarDataLayout& lidar_data_block) {
+    return lidar_data_block.point_num;
 }
 
-bool Mid360LidarSensor::PullFrontBufferPointer(Mid360LidarData** out_front_ptr) {
+bool Mid360LidarSensor::PullFrontBufferPointer(LidarDataLayout** out_front_ptr) {
     std::unique_lock<std::mutex> lock(buffer_swap_mutex_, std::try_to_lock);
-    if(!lock || !is_new_frame_ready_) {
+    if(!lock || !is_new_frame_ready_ || ready_buffer_ptr_ == nullptr) {
         return false;
     }
+    std::swap(read_buffer_ptr_, ready_buffer_ptr_);
     is_new_frame_ready_ = false;
-    *out_front_ptr = front_buffer_ptr_;
+    *out_front_ptr = read_buffer_ptr_;
 
     return true;
 }

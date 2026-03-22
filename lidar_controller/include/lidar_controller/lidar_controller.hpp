@@ -17,7 +17,10 @@
 #include <sensor_msgs/msg/image.hpp>
 #include "controller_msg/msg/custom_point.hpp"
 #include "controller_msg/msg/custom_msg.hpp"
-
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/msg/point_field.hpp"
+#include <sensor_base/data_layouts.hpp>
+#include <sensor_base/spsc_queue.hpp>
 
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -26,13 +29,38 @@
 
 namespace lidar_controller {
 
+using PointCloud2 = sensor_msgs::msg::PointCloud2;
+using PointField = sensor_msgs::msg::PointField;
+using CustomMsg = controller_msg::msg::CustomMsg;
+using CustomPoint = controller_msg::msg::CustomPoint;
+
 
 struct LidarPublishTask {
-    
+    uint64_t timestamp_nanos{0};
+    uint64_t update_count;
+    // one of lidar data
+    CustomMsg msg; // only lidar data
+    PointCloud2 point_cloud_msg; // point cloud data
 };
 
 struct LidarStreamContext {
-    
+    std::string interface_name;
+    std::string topic_name;
+
+    uint64_t last_update_count{0};
+    double last_ptr_value{0.0};
+
+    std::mutex mutex_;
+    std::condition_variable cv_;
+
+    // for worker thread
+    std::thread thread_;
+    std::vector<LidarPublishTask> publish_tasks_pool_;
+    sensor_base::SPSCQueue<int, 8> free_queue_;
+    sensor_base::SPSCQueue<int, 8> work_queue_;
+
+    rclcpp::Publisher<CustomMsg>::SharedPtr lidar_livox_pub_ = nullptr;
+    rclcpp::Publisher<PointCloud2>::SharedPtr lidar_point_cloud_pub_ = nullptr;
 };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -60,8 +88,11 @@ class LidarController : public controller_interface::ControllerInterface {
             const rclcpp::Time& time, const rclcpp::Duration& period) override;
     
     public:
+            
+        void publish_worker(std::shared_ptr<LidarStreamContext> ctx);
+        void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data);
+        void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data);
 
-          
     protected:
         
 
