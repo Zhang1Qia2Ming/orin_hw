@@ -55,7 +55,7 @@ test_imu_controller:
 
 test_lidar_controller:
   ros__parameters:
-    update_rate: 250
+    update_rate: 125
     lidar_list: ["mid360_front/lidar"]
 
 

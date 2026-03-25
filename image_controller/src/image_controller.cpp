@@ -286,6 +286,14 @@ namespace image_controller {
 
             try {
                 if(ctx->config.publish_raw && msg_raw) {
+
+                    // size_t payload_bytes = msg_raw->data.size();
+                    // double payload_kb = payload_bytes / 1024.0;
+                    // double payload_mb = payload_kb / 1024.0;
+                    // RCLCPP_INFO_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                    //     "Image stream %s publish payload kb: %f, payload mb: %f", 
+                    //     ctx->interface_name.c_str(), payload_kb, payload_mb);
+
                     ctx->image_raw_pub_->publish(*msg_raw);
                 }
 

@@ -27,10 +27,12 @@ namespace lidar_controller {
             lidar_stream_context->topic_name = interface_name;
 
             lidar_stream_context->lidar_livox_pub_ = get_node()->create_publisher<CustomMsg>(
-                lidar_stream_context->topic_name, 10);
+                lidar_stream_context->topic_name,
+                rclcpp::SensorDataQoS());
 
             lidar_stream_context->lidar_point_cloud_pub_ = get_node()->create_publisher<PointCloud2>(
-                lidar_stream_context->topic_name + "_point_cloud", 10);
+                lidar_stream_context->topic_name + "_point_cloud",
+                rclcpp::SensorDataQoS());
 
             lidar_stream_contexts_.push_back(lidar_stream_context);
         }
@@ -46,6 +48,9 @@ namespace lidar_controller {
                 ctx->free_queue_.push(i);
             }
             ctx->publish_tasks_pool_.resize(8);
+            for(auto& task : ctx->publish_tasks_pool_) {
+                task.raw_data.points.reserve(24000);
+            }
             ctx->thread_ = std::thread(&LidarController::publish_worker, this, ctx);
         }
         
@@ -125,10 +130,25 @@ namespace lidar_controller {
                 if(ctx->free_queue_.pop(index)) {
                     sensor_base::LidarDataLayout* raw_ptr = *reinterpret_cast<sensor_base::LidarDataLayout**>(&ptr_value);
                     // FillLidarPublishTaskWithPoints(ctx->publish_tasks_pool_[index], *raw_ptr);
-                    FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], *raw_ptr);
-                    ctx->work_queue_.push(index);
-                } else {
 
+                    // auto timestamp_0 = std::chrono::system_clock::now();
+                    
+                    // ctx->publish_tasks_pool_[index].raw_data = *raw_ptr;
+                    auto& dest = ctx->publish_tasks_pool_[index].raw_data;
+                    dest.point_num = raw_ptr->point_num;
+                    dest.points.assign(raw_ptr->points.begin(), raw_ptr->points.begin() + raw_ptr->point_num);
+                    
+                    // FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], *raw_ptr);
+                    // auto timestamp_1 = std::chrono::system_clock::now();
+                    // RCLCPP_INFO(get_node()->get_logger(), "FillLidarPublishTaskWithPoints2 cost: %ld us", std::chrono::duration_cast<std::chrono::microseconds>(timestamp_1 - timestamp_0).count());
+
+                    if(ctx->work_queue_.push(index)) {
+                        // RCLCPP_INFO(get_node()->get_logger(), "work_queue's occupancy/all: %ld/%ld", ctx->work_queue_.size(), ctx->work_queue_.max_size());
+                    } else {
+                        RCLCPP_WARN(get_node()->get_logger(), "work_queue is full, drop data");
+                    }
+                } else {
+                    RCLCPP_WARN(get_node()->get_logger(), "free_queue is empty, drop data");
                 }
                 
             } 
@@ -142,7 +162,27 @@ namespace lidar_controller {
             int index = -1;
             if(ctx->work_queue_.pop(index)) {
                 // ctx->lidar_livox_pub_->publish(ctx->publish_tasks_pool_[index].msg);
+                FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], 
+                                                ctx->publish_tasks_pool_[index].raw_data);
+                
+                // debug for see payload kb and mb
+                // auto& msg = ctx->publish_tasks_pool_[index].point_cloud_msg;
+                // size_t payload_bytes = msg.data.size();
+                // double payload_kb = payload_bytes / 1024.0;
+                // double payload_mb = payload_kb / 1024.0;
+                // RCLCPP_INFO_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                //     "Lidar stream %s publish payload kb: %f, payload mb: %f", ctx->interface_name.c_str(), payload_kb, payload_mb);
+                
+                // publish point cloud
                 ctx->lidar_point_cloud_pub_->publish(ctx->publish_tasks_pool_[index].point_cloud_msg);
+
+
+                // static auto last_pub_time = std::chrono::system_clock::now();
+                // auto now = std::chrono::system_clock::now();
+                // double dt = std::chrono::duration_cast<std::chrono::microseconds>(now - last_pub_time).count() / 1000000.0;
+                // RCLCPP_INFO_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                //     "Lidar stream %s publish cost: %f s", ctx->interface_name.c_str(), dt);
+                // last_pub_time = now;
                 ctx->free_queue_.push(index);
             } else {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -192,9 +232,9 @@ namespace lidar_controller {
         const auto &points = data.points;
         task.timestamp_nanos = points[0].offset_time;
         
-        auto& msg = task.point_cloud_msg; // 使用引用，缩短代码长度
+        auto& msg = task.point_cloud_msg;
         msg.header.stamp = rclcpp::Time(task.timestamp_nanos);
-        msg.header.frame_id = "map"; // 建议不要硬编码 base_link，用雷达实际坐标系
+        msg.header.frame_id = "map"; 
         msg.width = points_num;
         msg.height = 1;
         msg.is_bigendian = false;

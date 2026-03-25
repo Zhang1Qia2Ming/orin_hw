@@ -90,6 +90,12 @@ def generate_launch_description():
         output='screen'
     )
 
+    lidar_controller_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["test_lidar_controller", "--controller-manager", "/controller_manager"],
+        output='screen'
+    )
 
     rviz_node = Node(
         package='rviz2',
@@ -104,7 +110,7 @@ def generate_launch_description():
     image_controller_spawner,
     pose_controller_spawner,
     imu_controller_spawner,
-    # perception_system_controller_spawner,
+    lidar_controller_spawner,
     rviz_node,
     ])
     return ld

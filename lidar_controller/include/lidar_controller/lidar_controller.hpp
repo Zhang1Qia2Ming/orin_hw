@@ -41,6 +41,7 @@ struct LidarPublishTask {
     // one of lidar data
     CustomMsg msg; // only lidar data
     PointCloud2 point_cloud_msg; // point cloud data
+    sensor_base::LidarDataLayout raw_data;
 };
 
 struct LidarStreamContext {

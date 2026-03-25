@@ -44,6 +44,13 @@ public:
         return true;
     }
 
+    size_t size() const {
+        return (head_.load(std::memory_order_relaxed) - tail_.load(std::memory_order_relaxed)) % Capacity;
+    }
+
+    size_t max_size() const {
+        return Capacity;
+    }
 };
 
 } // namespace sensor_base
