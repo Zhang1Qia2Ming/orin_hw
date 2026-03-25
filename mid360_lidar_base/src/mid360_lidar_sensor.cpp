@@ -22,6 +22,13 @@ bool Mid360LidarSensor::init(const Mid360LidarConfig & config)
     ready_buffer_ptr_ = &data_2_.lidar_data;
     read_buffer_ptr_ = &data_3_.lidar_data;
 
+    imu_ptr_pack_.gyro_ptr = &(data_2_.gyro_data);
+    imu_ptr_pack_.accel_ptr = &(data_2_.accel_data);
+
+    ImuPointerPack* pack_ptr = &imu_ptr_pack_;
+    std::memcpy(&imu_ptr_as_double_, &pack_ptr, sizeof(pack_ptr));
+    // pointer
+
     config_ = config;
     data_1_ = Mid360LidarData();
     data_1_.lidar_data.header.update_count = 0;
@@ -133,8 +140,14 @@ void Mid360LidarSensor::main_loop()
 
 bool Mid360LidarSensor::update_buffer2()
 {
-    // 
-    return true;
+    // copy imu data
+    if(data_mutex_.try_lock_for(std::chrono::microseconds(50))) {
+        data_2_.gyro_data = data_1_.gyro_data;
+        data_2_.accel_data = data_1_.accel_data;
+        data_mutex_.unlock();
+        return true;
+    }
+    return false;
 }
 
 
@@ -166,6 +179,8 @@ void Mid360LidarSensor::set_extrinsic_parameter()
     config_.RotationMatrix[2][1] = sin_roll * cos_pitch;
     config_.RotationMatrix[2][2] = cos_roll * cos_pitch;
 
+    // RCLCPP_INFO(rclcpp::get_logger(name_), "RotationMatrix:[%f, %f, %f, %f, %f, %f, %f, %f, %f,]", config_.RotationMatrix[0][0], config_.RotationMatrix[0][1], config_.RotationMatrix[0][2], config_.RotationMatrix[1][0], config_.RotationMatrix[1][1], config_.RotationMatrix[1][2], config_.RotationMatrix[2][0], config_.RotationMatrix[2][1], config_.RotationMatrix[2][2]);
+    
     config_.is_extrinsic_set = true;
     return;
 }
@@ -439,7 +454,7 @@ void Mid360LidarSensor::ProcessCartesianHighPoint(RawPacket& pkt, std::vector<Li
                 point.x = points[i].x / 1000.0;
                 point.y = points[i].y / 1000.0;
                 point.z = points[i].z / 1000.0;
-            } else {
+            } else {    // todo:move to controller
                 point.x = (points[i].x * config_.RotationMatrix[0][0] +
                             points[i].y * config_.RotationMatrix[0][1] +
                             points[i].z * config_.RotationMatrix[0][2] + config_.TranslationVector[0]) /

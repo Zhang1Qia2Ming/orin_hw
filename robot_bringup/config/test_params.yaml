@@ -51,7 +51,7 @@ test_pose_controller:
 test_imu_controller:
   ros__parameters:
     update_rate: 250
-    imu_list: ["t265_front/accel", "t265_front/gyro"]
+    imu_list: ["t265_front/accel", "t265_front/gyro", "mid360_front/imu"]
 
 test_lidar_controller:
   ros__parameters:

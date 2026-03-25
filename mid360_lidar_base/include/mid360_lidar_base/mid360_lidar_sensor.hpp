@@ -72,6 +72,10 @@ struct Mid360LidarData {
     AccelDataLayout accel_data;
 };
 
+struct ImuPointerPack {
+    GyroDataLayout* gyro_ptr;
+    AccelDataLayout* accel_ptr;
+};
 
 class Mid360LidarSensor : public SensorBase {
 public:
@@ -96,6 +100,9 @@ public:
     bool is_new_frame_ready_ = false;
 
     double lidar_ptr_as_double_ = 0.0;
+
+    ImuPointerPack imu_ptr_pack_;  // gyro and accel
+    double imu_ptr_as_double_ = 0.0;
 
     // pointer
 

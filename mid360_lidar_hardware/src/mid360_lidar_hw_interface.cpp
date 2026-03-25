@@ -76,8 +76,8 @@ std::vector<hardware_interface::StateInterface> Mid360LidarHwInterface::export_s
 
     state_interfaces.emplace_back(hardware_interface::StateInterface(mid360_lidar_sensor_->get_name(), "lidar", 
         &(mid360_lidar_sensor_->lidar_ptr_as_double_)));
-    // state_interfaces.emplace_back(hardware_interface::StateInterface(mid360_lidar_sensor_->get_name(), "imu", 
-    //     &(mid360_lidar_sensor_->imu_ptr_as_double_)));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(mid360_lidar_sensor_->get_name(), "imu", 
+        &(mid360_lidar_sensor_->imu_ptr_as_double_))); 
     return state_interfaces; 
 }
 
@@ -97,8 +97,10 @@ hardware_interface::return_type Mid360LidarHwInterface::read(
 
         // RCLCPP_INFO(rclcpp::get_logger("Mid360LidarHwInterface"), "latest_front_ptr: %p", 
         //     *reinterpret_cast<void**>(&mid360_lidar_sensor_->lidar_ptr_as_double_));
-        mid360_lidar_sensor_->update_buffer2();  // now lidar's update_buffer2 is empty function
+        
     }
+    mid360_lidar_sensor_->update_buffer2(); 
+
     return hardware_interface::return_type::OK;
 }
 
