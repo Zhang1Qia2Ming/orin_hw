@@ -4,3 +4,13 @@ lidar_controller:
     default_value: ["mid360_front/lidar"]
     description: "List of lidar topics, each topic should be in the format of 'device_name/lidar_name'"
 
+  lidar_config:
+    __map_lidar_list:
+      enable_dynamic_extrinsics:
+        type: bool
+        default_value: false
+        description: "Enable dynamic extrinsics"
+      # extrinsics:
+      #   type: double_array
+      #   default_value: [0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+      #   description: "7-size array:position(x,y,z), orientation(qx,qy,qz,qw)"

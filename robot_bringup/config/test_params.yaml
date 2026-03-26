@@ -58,6 +58,10 @@ test_lidar_controller:
     update_rate: 125
     lidar_list: ["mid360_front/lidar"]
 
+    lidar_config:
+      "mid360_front/lidar":
+        enable_dynamic_extrinsics: true
+
 
 
 

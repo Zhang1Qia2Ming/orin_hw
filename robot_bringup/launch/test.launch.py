@@ -112,7 +112,7 @@ def generate_launch_description():
     pose_controller_spawner,
     imu_controller_spawner,
     lidar_controller_spawner,
-    # rviz_node,
+    rviz_node,
     ])
     return ld
 

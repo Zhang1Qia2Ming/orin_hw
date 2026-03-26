@@ -13,6 +13,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   sensor_base
   PCL
+  Eigen
 )
 
 find_package(ament_cmake REQUIRED)

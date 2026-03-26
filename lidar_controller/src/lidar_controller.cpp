@@ -34,6 +34,30 @@ namespace lidar_controller {
                 lidar_stream_context->topic_name + "_point_cloud",
                 rclcpp::SensorDataQoS());
 
+            if(params_.lidar_config.lidar_list_map.find(interface_name)->second.enable_dynamic_extrinsics) {
+                lidar_stream_context->enable_dynamic_extrinsics = true;
+
+                auto transform_callback = [ctx = lidar_stream_context](const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+                    Eigen::Translation3f translation(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+                    Eigen::Quaternionf rotation(msg->pose.orientation.w, msg->pose.orientation.x, 
+                        msg->pose.orientation.y, msg->pose.orientation.z);
+                    
+                    Eigen::Affine3f new_extrinsics = translation * rotation;
+
+                    {
+                        std::lock_guard<std::mutex> lock(ctx->extrinsics_mutex_);
+                        ctx->current_extrinsics = new_extrinsics;
+                        ctx->extrinsics_updated_ = true;
+                    }
+                };
+
+                lidar_stream_context->dynamic_livox_sub_ = get_node()->create_subscription<geometry_msgs::msg::PoseStamped>(
+                    lidar_stream_context->interface_name + "/extrinsics",10, transform_callback);
+            } else {
+                lidar_stream_context->enable_dynamic_extrinsics = false;
+                lidar_stream_context->dynamic_livox_sub_ = nullptr;
+            }
+
             lidar_stream_contexts_.push_back(lidar_stream_context);
         }
         
@@ -162,8 +186,24 @@ namespace lidar_controller {
             int index = -1;
             if(ctx->work_queue_.pop(index)) {
                 // ctx->lidar_livox_pub_->publish(ctx->publish_tasks_pool_[index].msg);
+                Eigen::Affine3f current_transform = Eigen::Affine3f::Identity();
+                bool do_transform = false;
+
+                if(ctx->enable_dynamic_extrinsics) {
+                    std::lock_guard<std::mutex> lock(ctx->extrinsics_mutex_);
+                    if(ctx->extrinsics_updated_) {
+                        current_transform = ctx->current_extrinsics;
+                        do_transform = true;
+
+                        // print current_transform:Eigen::Affine3f every member
+                        // RCLCPP_INFO(get_node()->get_logger(), "current_transform: %f, %f, %f", current_transform.translation().x(), current_transform.translation().y(), current_transform.translation().z());
+                    }
+                }
                 FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], 
-                                                ctx->publish_tasks_pool_[index].raw_data);
+                                                ctx->publish_tasks_pool_[index].raw_data,
+                                                do_transform,
+                                                current_transform
+                                            );
                 
                 // debug for see payload kb and mb
                 // auto& msg = ctx->publish_tasks_pool_[index].point_cloud_msg;
@@ -222,7 +262,10 @@ namespace lidar_controller {
 
     }
 
-    void LidarController::FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data) 
+    void LidarController::FillLidarPublishTaskWithPoints2(  LidarPublishTask& task, 
+                                                            const sensor_base::LidarDataLayout& data,
+                                                            bool do_transform,
+                                                            const Eigen::Affine3f& transform) 
     {
         uint32_t points_num = data.point_num;
         if(points_num == 0) {
@@ -275,9 +318,17 @@ namespace lidar_controller {
 
         // 像操作普通数组一样，直接在 ROS msg 的内存里进行赋值和修正，0 次额外内存分配！
         for(uint32_t i = 0; i < points_num; ++i) {
-            dest_ptr[i].x = points[i].x;
-            dest_ptr[i].y = points[i].y;
-            dest_ptr[i].z = points[i].z;
+            if(do_transform) {
+                Eigen::Vector3f p(points[i].x, points[i].y, points[i].z);
+                p = transform * p;
+                dest_ptr[i].x = p.x();
+                dest_ptr[i].y = p.y();
+                dest_ptr[i].z = p.z();
+            } else {
+                dest_ptr[i].x = points[i].x;
+                dest_ptr[i].y = points[i].y;
+                dest_ptr[i].z = points[i].z;
+            }
             dest_ptr[i].intensity = points[i].intensity;
             dest_ptr[i].tag = points[i].tag;
             dest_ptr[i].line = points[i].line;
@@ -288,4 +339,17 @@ namespace lidar_controller {
 
 
 } // namespace lidar_controller
+
+
+// struct Params {
+//         std::vector<std::string> lidar_list = {"mid360_front/lidar"};
+//         struct LidarConfig {
+//             struct MapLidarList {
+//                 bool enable_dynamic_extrinsics = false;
+//             };
+//             std::map<std::string, MapLidarList> lidar_list_map;
+//         } lidar_config;
+//         // for detecting if the parameter struct has been updated
+//         rclcpp::Time __stamp;
+//     };
 

@@ -21,7 +21,8 @@
 #include "sensor_msgs/msg/point_field.hpp"
 #include <sensor_base/data_layouts.hpp>
 #include <sensor_base/spsc_queue.hpp>
-
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -54,6 +55,12 @@ struct LidarStreamContext {
     std::mutex mutex_;
     std::condition_variable cv_;
 
+    // for dynamic extrinsics
+    bool enable_dynamic_extrinsics{false};
+    Eigen::Affine3f current_extrinsics{Eigen::Affine3f::Identity()};
+    std::mutex extrinsics_mutex_;
+    bool extrinsics_updated_{false};
+
     // for worker thread
     std::thread thread_;
     std::vector<LidarPublishTask> publish_tasks_pool_;
@@ -62,6 +69,7 @@ struct LidarStreamContext {
 
     rclcpp::Publisher<CustomMsg>::SharedPtr lidar_livox_pub_ = nullptr;
     rclcpp::Publisher<PointCloud2>::SharedPtr lidar_point_cloud_pub_ = nullptr;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr dynamic_livox_sub_ = nullptr;
 };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -92,7 +100,7 @@ class LidarController : public controller_interface::ControllerInterface {
             
         void publish_worker(std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data);
-        void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data);
+        void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform);
 
     protected:
         
