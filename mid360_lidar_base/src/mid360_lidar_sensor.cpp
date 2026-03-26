@@ -212,7 +212,9 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
 {
     // todo
     uint64_t ts = 0;
-    std::memcpy(&ts, data->timestamp, sizeof(data->timestamp));
+    // std::memcpy(&ts, data->timestamp, sizeof(data->timestamp));
+    auto now = std::chrono::system_clock::now();
+    ts = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
 
     if(data->data_type == kLivoxLidarImuData) {
         // std::cout << "imu data" << std::endl;

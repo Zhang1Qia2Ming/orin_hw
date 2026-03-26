@@ -182,41 +182,41 @@ namespace imu_controller {
                     continue;
                 }
 
-                sensor_base::GyroDataLayout* get_gyro_ptr = nullptr;
-                sensor_base::AccelDataLayout* get_accel_ptr = nullptr;
-                
-                // std::memcpy(&get_gyro_ptr, &imu_ptr_value[0], sizeof(get_gyro_ptr));
-                // std::memcpy(&get_accel_ptr, &imu_ptr_value[1], sizeof(get_accel_ptr));
+                sensor_base::ImuPointerPack* imu_ptr_pack = nullptr;
+                std::memcpy(&imu_ptr_pack, &imu_ptr_value, sizeof(imu_ptr_pack));
 
-                // if(get_gyro_ptr == nullptr || get_accel_ptr == nullptr) {
-                //     continue;
-                // }
+                sensor_base::GyroDataLayout* get_gyro_ptr = imu_ptr_pack->gyro_ptr;
+                sensor_base::AccelDataLayout* get_accel_ptr = imu_ptr_pack->accel_ptr;
 
-                // // gyro for t265 hz:200, accel for t265 hz:62.5,so we choose gyro update_count
-                // if(get_gyro_ptr->header.update_count > ctx->last_update_count) {
+                if(get_gyro_ptr == nullptr || get_accel_ptr == nullptr) {
+                    continue;
+                }
+
+                // gyro for t265 hz:200, accel for t265 hz:62.5,so we choose gyro update_count
+                if(get_gyro_ptr->header.update_count > ctx->last_update_count) {
                     
-                //     //update local
-                //     ctx->last_update_count = get_gyro_ptr->header.update_count;
+                    //update local
+                    ctx->last_update_count = get_gyro_ptr->header.update_count;
 
-                //     ImuPublishTask task;
-                //     task.timestamp_nanos = get_gyro_ptr->header.timestamp_nanos;
-                //     task.update_count = get_gyro_ptr->header.update_count;
-                //     std::memcpy(&task.gyro, &get_gyro_ptr->gyro, sizeof(task.gyro));
-                //     std::memcpy(&task.accel, &get_accel_ptr->accel, sizeof(task.accel));        
+                    ImuPublishTask task;
+                    task.timestamp_nanos = get_gyro_ptr->header.timestamp_nanos;
+                    task.update_count = get_gyro_ptr->header.update_count;
+                    std::memcpy(&task.gyro, &get_gyro_ptr->gyro, sizeof(task.gyro));
+                    std::memcpy(&task.accel, &get_accel_ptr->accel, sizeof(task.accel));        
 
-                //     {
-                //         std::lock_guard<std::mutex> lock(ctx->mutex_);
-                //         ctx->queue_.push(task);
+                    {
+                        std::lock_guard<std::mutex> lock(ctx->mutex_);
+                        ctx->queue_.push(task);
 
-                //         if(ctx->queue_.size() > 10) {
-                //             ctx->queue_.pop();
-                //         }                   
-                //     }
-                //     ctx->cv_.notify_one();
-                // } else {
-                //     // RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
-                //     //             "[%s] HW interface error: update_count is not increasing", ctx->interface_name.c_str());
-                // }
+                        if(ctx->queue_.size() > 10) {
+                            ctx->queue_.pop();
+                        }                   
+                    }
+                    ctx->cv_.notify_one();
+                } else {
+                    // RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                    //             "[%s] HW interface error: update_count is not increasing", ctx->interface_name.c_str());
+                }
 
 
             } else {

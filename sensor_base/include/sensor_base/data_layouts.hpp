@@ -61,6 +61,12 @@ namespace sensor_base {
         std::vector<LidarDataPointLayout> points;
     };
 
+    // imu data layout = `GyroDataLayout` + `AccelDataLayout`
+    struct ImuPointerPack {
+        GyroDataLayout* gyro_ptr;
+        AccelDataLayout* accel_ptr;
+    };
+
 }  // namespace sensor_base
 
 #endif  // SENSOR_BASE_DATA_LAYOUTS_HPP_
