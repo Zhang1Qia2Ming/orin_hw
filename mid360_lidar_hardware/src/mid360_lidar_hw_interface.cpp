@@ -25,12 +25,12 @@ hardware_interface::CallbackReturn Mid360LidarHwInterface::on_init(
     config.cmdline_input_bd_code = info.hardware_parameters.find("cmdline_input_bd_code")->second;
     config.pcl_data_type = kLivoxLidarCartesianCoordinateHighData;
     
-    config.extrinsic_parameter[0] = 0.0;
-    config.extrinsic_parameter[1] = 0.0;
-    config.extrinsic_parameter[2] = 0.0;
-    config.extrinsic_parameter[3] = 0.0;
-    config.extrinsic_parameter[4] = 0.0;
-    config.extrinsic_parameter[5] = 0.0;
+    config.extrinsic_parameter[0] = std::stod(info.hardware_parameters.find("extrinsic_parameter_roll")->second);
+    config.extrinsic_parameter[1] = std::stod(info.hardware_parameters.find("extrinsic_parameter_pitch")->second);
+    config.extrinsic_parameter[2] = std::stod(info.hardware_parameters.find("extrinsic_parameter_yaw")->second);
+    config.extrinsic_parameter[3] = std::stod(info.hardware_parameters.find("extrinsic_parameter_x")->second);
+    config.extrinsic_parameter[4] = std::stod(info.hardware_parameters.find("extrinsic_parameter_y")->second);
+    config.extrinsic_parameter[5] = std::stod(info.hardware_parameters.find("extrinsic_parameter_z")->second);
 
     // config.serial_no = info.hardware_parameters.find("serial_no")->second;
     // config.usb_port_id = info.hardware_parameters.find("usb_port_id")->second;
