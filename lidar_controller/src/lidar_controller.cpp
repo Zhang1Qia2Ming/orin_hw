@@ -25,6 +25,7 @@ namespace lidar_controller {
             auto lidar_stream_context = std::make_shared<LidarStreamContext>();
             lidar_stream_context->interface_name = interface_name;
             lidar_stream_context->topic_name = interface_name;
+            lidar_stream_context->frame_id = params_.lidar_config.lidar_list_map.find(interface_name)->second.frame_id;
 
             lidar_stream_context->lidar_livox_pub_ = get_node()->create_publisher<CustomMsg>(
                 lidar_stream_context->topic_name,
@@ -202,7 +203,8 @@ namespace lidar_controller {
                 FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], 
                                                 ctx->publish_tasks_pool_[index].raw_data,
                                                 do_transform,
-                                                current_transform
+                                                current_transform,
+                                                ctx
                                             );
                 
                 // debug for see payload kb and mb
@@ -265,7 +267,8 @@ namespace lidar_controller {
     void LidarController::FillLidarPublishTaskWithPoints2(  LidarPublishTask& task, 
                                                             const sensor_base::LidarDataLayout& data,
                                                             bool do_transform,
-                                                            const Eigen::Affine3f& transform) 
+                                                            const Eigen::Affine3f& transform,
+                                                            std::shared_ptr<LidarStreamContext> ctx) 
     {
         uint32_t points_num = data.point_num;
         if(points_num == 0) {
@@ -277,7 +280,7 @@ namespace lidar_controller {
         
         auto& msg = task.point_cloud_msg;
         msg.header.stamp = rclcpp::Time(task.timestamp_nanos);
-        msg.header.frame_id = "map"; 
+        msg.header.frame_id = ctx->frame_id; 
         msg.width = points_num;
         msg.height = 1;
         msg.is_bigendian = false;

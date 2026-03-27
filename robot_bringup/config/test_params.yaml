@@ -61,6 +61,7 @@ test_lidar_controller:
     lidar_config:
       "mid360_front/lidar":
         enable_dynamic_extrinsics: true
+        frame_id: "mid360_front_frame"
 
 
 

@@ -48,6 +48,7 @@ struct LidarPublishTask {
 struct LidarStreamContext {
     std::string interface_name;
     std::string topic_name;
+    std::string frame_id;
 
     uint64_t last_update_count{0};
     double last_ptr_value{0.0};
@@ -100,7 +101,7 @@ class LidarController : public controller_interface::ControllerInterface {
             
         void publish_worker(std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data);
-        void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform);
+        void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
 
     protected:
         

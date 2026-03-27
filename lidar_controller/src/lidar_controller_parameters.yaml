@@ -10,6 +10,10 @@ lidar_controller:
         type: bool
         default_value: false
         description: "Enable dynamic extrinsics"
+      frame_id:
+        type: string
+        default_value: "livox_frame"
+        description: "Frame ID of the lidar"
       # extrinsics:
       #   type: double_array
       #   default_value: [0.0,0.0,0.0,0.0,0.0,0.0,0.0]
