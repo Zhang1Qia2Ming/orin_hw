@@ -310,7 +310,7 @@ namespace lidar_controller {
             
             // 如果你的 offset_time 是 uint64_t，在 ROS 里通常不直接映射那么大的自定义整型。
             // 但如果强行映射，这里可能得填 FLOAT64 或自定义解析。如果是相对时间偏移，可以用 FLOAT32/FLOAT64。
-            // add_field("offset_time", offsetof(sensor_base::LidarDataPointLayout, offset_time), ...);
+            add_field("offset_time", offsetof(sensor_base::LidarDataPointLayout, offset_time), sensor_msgs::msg::PointField::FLOAT64);
         }
 
         // 🌟 护城河 2：一步到位分配底层内存（对象池重用时，如果容量够，resize 是不耗时的）

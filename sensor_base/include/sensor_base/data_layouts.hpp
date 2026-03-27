@@ -43,6 +43,8 @@ namespace sensor_base {
     };
 
     //lidar data layout
+
+#pragma pack(push, 1)
     struct LidarDataPointLayout {
         float x;
         float y;
@@ -52,6 +54,7 @@ namespace sensor_base {
         uint8_t line;
         uint64_t offset_time;
     };
+#pragma pack(pop)
 
     struct LidarDataLayout {
         SensorHeader header;
