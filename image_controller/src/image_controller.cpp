@@ -188,6 +188,9 @@ namespace image_controller {
         return controller_interface::return_type::OK;
     }
 
+
+    // todo :segment fault,maybe visit beyond boundary
+    // e.m. std::vector's size is 7, capacity is 10, when you visit, error may not happen
     void ImageController::processor_thread(std::shared_ptr<ImageStreamContext> ctx) {
         // set_thread_name(ctx->interface_name + "_processor_thread");
         
