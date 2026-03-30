@@ -38,8 +38,10 @@ namespace imu_controller {
                 auto ctx = std::make_shared<ImuStreamContext>();
                 ctx->device_name = device_name;
                 ctx->topic_name = device_name + "/imu";
+                rclcpp::QoS imu_qos = rclcpp::SensorDataQoS();
+                imu_qos.reliable();
                 ctx->imu_pub_ = get_node()->create_publisher<sensor_msgs::msg::Imu>(
-                    ctx->topic_name, rclcpp::SensorDataQoS());
+                    ctx->topic_name, imu_qos);
                 
                 imu_interface_map[device_name] = ctx;
             }

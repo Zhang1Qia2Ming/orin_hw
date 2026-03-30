@@ -10,7 +10,11 @@ namespace sensor_base {
 // SPSC queue
 template <typename T, size_t Capacity>
 class SPSCQueue {
+    static_assert((Capacity > 0)&&(Capacity & (Capacity - 1)) == 0, "Capacity must be greater than 0 and power of 2");
+
 private:
+    static const size_t mask_ = Capacity - 1;
+
     std::array<T, Capacity> buffer_;
 
     alignas(64) std::atomic<size_t> head_{0};
@@ -21,12 +25,12 @@ public:
 
     bool push(const T& item) {
         size_t current_head = head_.load(std::memory_order_relaxed);
-        size_t next_head = (current_head + 1) % Capacity;
+        size_t next_head = (current_head + 1) & mask_;
         if (next_head == tail_.load(std::memory_order_relaxed)) {
             return false;
         }
 
-        buffer_[next_head] = item;
+        buffer_[current_head] = item;
 
         head_.store(next_head, std::memory_order_release);
         return true;
@@ -40,7 +44,7 @@ public:
         }
 
         item = buffer_[current_tail];
-        tail_.store((current_tail + 1) % Capacity, std::memory_order_release);
+        tail_.store((current_tail + 1) & mask_, std::memory_order_release);
         return true;
     }
 

@@ -171,7 +171,7 @@ namespace image_controller {
                 ImagePublishTask task;
                 task.timestamp_nanos = get_image_ptr->header.timestamp_nanos;
                 task.update_count = get_image_ptr->header.update_count;
-                task.image = get_image_ptr->image;
+                task.image = get_image_ptr->image.clone();
 
                 {
                     std::lock_guard<std::mutex> lock(ctx->mutex_);
