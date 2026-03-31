@@ -56,6 +56,8 @@ bool Mid360LidarSensor::open_device()
 {
 
     is_running_.store(true);
+    is_time_sync_.store(false);
+    global_time_offset_ns_.store(0);
     // initialize read-lidar
     int xfer_format = config_.xfer_format;
     int multi_topic = config_.multi_topic;
@@ -210,11 +212,22 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
                                             const uint8_t dev_type, 
                                             LivoxLidarEthernetPacket *data)
 {
-    // todo
-    uint64_t ts = 0;
-    // std::memcpy(&ts, data->timestamp, sizeof(data->timestamp));
     auto now = std::chrono::system_clock::now();
-    ts = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+    int64_t host_now_ts = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+
+    uint64_t hardware_ts = 0;
+    std::memcpy(&hardware_ts, data->timestamp, sizeof(uint64_t));
+    RCLCPP_INFO(rclcpp::get_logger(name_), "hardware timestamp: %ld", hardware_ts);
+
+    bool expected = false;
+    if(is_time_sync_.compare_exchange_strong(expected, true)) {
+        // todo: set global time offset
+        int64_t offset = host_now_ts - static_cast<int64_t>(hardware_ts);
+        global_time_offset_ns_.store(offset, std::memory_order_release);
+        RCLCPP_INFO(rclcpp::get_logger(name_), "global time offset: %ld", offset);
+    }
+    int64_t current_offset = global_time_offset_ns_.load(std::memory_order_acquire);
+    int64_t ts = hardware_ts + current_offset;
 
     if(data->data_type == kLivoxLidarImuData) {
         // std::cout << "imu data" << std::endl;

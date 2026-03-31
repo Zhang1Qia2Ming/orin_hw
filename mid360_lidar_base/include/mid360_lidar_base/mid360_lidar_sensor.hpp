@@ -175,6 +175,9 @@ private:
     std::mutex packet_mutex_;
     std::mutex points_clouds_mutex_;
     std::vector<LidarDataPointLayout> points_clouds_;
+
+    std::atomic<bool> is_time_sync_{false};
+    std::atomic<int64_t> global_time_offset_ns_{0};
     
 };
 
