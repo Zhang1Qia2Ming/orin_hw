@@ -18,6 +18,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   cv_bridge
   sensor_base
   controller_msg
+  livox_ros_driver2
 )
 
 find_package(ament_cmake REQUIRED)

@@ -15,8 +15,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include <sensor_msgs/msg/image.hpp>
-#include "controller_msg/msg/custom_point.hpp"
-#include "controller_msg/msg/custom_msg.hpp"
+// #include "controller_msg/msg/custom_point.hpp"
+// #include "controller_msg/msg/custom_msg.hpp"
+#include "livox_ros_driver2/msg/custom_point.hpp"
+#include "livox_ros_driver2/msg/custom_msg.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/msg/point_field.hpp"
 #include <sensor_base/data_layouts.hpp>
@@ -32,8 +34,8 @@ namespace lidar_controller {
 
 using PointCloud2 = sensor_msgs::msg::PointCloud2;
 using PointField = sensor_msgs::msg::PointField;
-using CustomMsg = controller_msg::msg::CustomMsg;
-using CustomPoint = controller_msg::msg::CustomPoint;
+using CustomMsg = livox_ros_driver2::msg::CustomMsg;
+using CustomPoint = livox_ros_driver2::msg::CustomPoint;
 
 
 struct LidarPublishTask {
@@ -100,7 +102,7 @@ class LidarController : public controller_interface::ControllerInterface {
     public:
             
         void publish_worker(std::shared_ptr<LidarStreamContext> ctx);
-        void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data);
+        void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
 
     protected:

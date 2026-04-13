@@ -28,8 +28,8 @@ namespace lidar_controller {
             lidar_stream_context->frame_id = params_.lidar_config.lidar_list_map.find(interface_name)->second.frame_id;
 
             lidar_stream_context->lidar_livox_pub_ = get_node()->create_publisher<CustomMsg>(
-                lidar_stream_context->topic_name,
-                rclcpp::SensorDataQoS());
+                lidar_stream_context->topic_name + "_custom_msg",
+                256);
 
             lidar_stream_context->lidar_point_cloud_pub_ = get_node()->create_publisher<PointCloud2>(
                 lidar_stream_context->topic_name + "_point_cloud",
@@ -191,7 +191,7 @@ namespace lidar_controller {
         if(rc != 0) {
             RCLCPP_WARN(get_node()->get_logger(),"fail to set thread name for lidar stream %s", ctx->interface_name.c_str());
         }
-        RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s publish worker started", ctx->interface_name.c_str());
+        // RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s publish worker started", ctx->interface_name.c_str());
         while(is_running_) {
             int index = -1;
             if(ctx->work_queue_.pop(index)) {
@@ -215,6 +215,12 @@ namespace lidar_controller {
                                                 current_transform,
                                                 ctx
                                             );
+                FillLidarPublishTaskWithPoints(ctx->publish_tasks_pool_[index], 
+                                                ctx->publish_tasks_pool_[index].raw_data,
+                                                do_transform,
+                                                current_transform,
+                                                ctx
+                                            );
                 
                 // debug for see payload kb and mb
                 // auto& msg = ctx->publish_tasks_pool_[index].point_cloud_msg;
@@ -226,6 +232,7 @@ namespace lidar_controller {
                 
                 // publish point cloud
                 ctx->lidar_point_cloud_pub_->publish(ctx->publish_tasks_pool_[index].point_cloud_msg);
+                ctx->lidar_livox_pub_->publish(ctx->publish_tasks_pool_[index].msg);
 
 
                 // static auto last_pub_time = std::chrono::system_clock::now();
@@ -242,7 +249,11 @@ namespace lidar_controller {
         RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s publish worker stopped", ctx->interface_name.c_str());
     }
 
-    void LidarController::FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data) 
+    void LidarController::FillLidarPublishTaskWithPoints(   LidarPublishTask& task, 
+                                                            const sensor_base::LidarDataLayout& data,
+                                                            bool do_transform,
+                                                            const Eigen::Affine3f& transform,
+                                                            std::shared_ptr<LidarStreamContext> ctx) 
     {
         uint32_t points_num = data.point_num;
 
@@ -250,25 +261,39 @@ namespace lidar_controller {
             return;
         }
 
-        const std::vector<sensor_base::LidarDataPointLayout> &points = data.points;
+        const auto &points = data.points;
         task.timestamp_nanos = data.points[0].offset_time;
 
-        task.msg.points.clear();
+        auto& msg = task.msg;
+        msg.header.stamp = rclcpp::Time(task.timestamp_nanos);
+        msg.header.frame_id = ctx->frame_id;
+        msg.point_num = points_num;
+        msg.lidar_id = data.lidar_id;
 
-        task.msg.points.reserve(points_num);
+        msg.points.clear();
+
+        msg.points.reserve(points_num);
         // RCLCPP_INFO(rclcpp::get_logger("debug!!!"), "Lidar stream publish points num: %d", points_num);
         for(uint32_t i = 0; i < points_num; ++i) {
             CustomPoint point;
-            point.x = points[i].x;
-            point.y = points[i].y;
-            point.z = points[i].z;
+            if(do_transform) {
+                Eigen::Vector3f p(points[i].x, points[i].y, points[i].z);
+                p = transform * p;
+                point.x = p.x();
+                point.y = p.y();
+                point.z = p.z();
+            } else {
+                point.x = points[i].x;
+                point.y = points[i].y;
+                point.z = points[i].z;
+            }
             point.reflectivity = points[i].intensity;
             point.tag = points[i].tag;
             point.line = points[i].line;
             point.offset_time =
                 static_cast<uint32_t>(points[i].offset_time - task.timestamp_nanos);
 
-            task.msg.points.push_back(std::move(point));
+            msg.points.push_back(std::move(point));
         }
 
     }
@@ -283,6 +308,7 @@ namespace lidar_controller {
         if(points_num == 0) {
             return;
         }
+        // RCLCPP_INFO(rclcpp::get_logger("debug!!!"), "Lidar stream publish points num: %d", points_num);
 
         const auto &points = data.points;
         task.timestamp_nanos = points[0].offset_time;
