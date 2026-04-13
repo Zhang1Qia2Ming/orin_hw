@@ -34,6 +34,7 @@ struct ImuStreamContext {
     std::string interface_name;         // if interface_name is imu, use only interface_name
     std::string gyro_interface_name;    // otherwise, use gyro_interface_name and accel_interface_name
     std::string accel_interface_name;
+    std::string frame_id;              // frame_id for published imu topic, default is device_name + "_imu_frame"
 
     std::string topic_name;             // but the topic_name is only /device_name/imu
 

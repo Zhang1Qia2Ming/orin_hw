@@ -217,7 +217,7 @@ void Mid360LidarSensor::enqueueRawPacket(  uint32_t handle,
 
     uint64_t hardware_ts = 0;
     std::memcpy(&hardware_ts, data->timestamp, sizeof(uint64_t));
-    RCLCPP_INFO(rclcpp::get_logger(name_), "hardware timestamp: %ld", hardware_ts);
+    // RCLCPP_INFO(rclcpp::get_logger(name_), "hardware timestamp: %ld", hardware_ts);
 
     bool expected = false;
     if(is_time_sync_.compare_exchange_strong(expected, true)) {

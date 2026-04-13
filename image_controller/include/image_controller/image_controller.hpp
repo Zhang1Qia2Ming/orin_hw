@@ -15,6 +15,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -44,6 +45,7 @@ struct ImageStreamContext {
     //after processor queue
     std::deque<sensor_msgs::msg::Image::SharedPtr> processed_queue_raw;
     std::deque<sensor_msgs::msg::Image::SharedPtr> processed_queue_undistorted;
+    std::deque<sensor_msgs::msg::CompressedImage::SharedPtr> processed_queue_compressed;
 
     std::mutex processor_mutex_;
     std::condition_variable processed_cv_;
@@ -71,6 +73,7 @@ struct ImageStreamContext {
     // publisher
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_raw_pub_ = nullptr;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_undistorted_pub_ = nullptr;
+    rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr compressed_pub_ = nullptr;
 };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;

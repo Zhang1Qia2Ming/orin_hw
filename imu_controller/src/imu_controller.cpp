@@ -38,10 +38,10 @@ namespace imu_controller {
                 auto ctx = std::make_shared<ImuStreamContext>();
                 ctx->device_name = device_name;
                 ctx->topic_name = device_name + "/imu";
-                rclcpp::QoS imu_qos = rclcpp::SensorDataQoS();
-                imu_qos.reliable();
+                // rclcpp::QoS imu_qos = rclcpp::SensorDataQoS();
+                // imu_qos.reliable();
                 ctx->imu_pub_ = get_node()->create_publisher<sensor_msgs::msg::Imu>(
-                    ctx->topic_name, imu_qos);
+                    ctx->topic_name, 256);
                 
                 imu_interface_map[device_name] = ctx;
             }
@@ -49,10 +49,13 @@ namespace imu_controller {
             auto ctx = imu_interface_map[device_name];
             if(suffix == "imu") {
                 ctx->interface_name = interface_name;
+                ctx->frame_id = "livox_frame";
             } else if(suffix == "gyro") {
                 ctx->gyro_interface_name = interface_name;
+                ctx->frame_id = device_name + "_frame";
             } else if (suffix == "accel") {
                 ctx->accel_interface_name = interface_name;
+                ctx->frame_id = device_name + "_frame";
             } else {
                 // unknown suffix
             }
@@ -311,6 +314,15 @@ namespace imu_controller {
     }
 
     void ImuController::worker_thread(std::shared_ptr<ImuStreamContext> ctx) {
+        RCLCPP_INFO(get_node()->get_logger(), "Imu stream %s worker thread started", ctx->interface_name.c_str());
+        std::string t_name = ctx->interface_name;
+        if(t_name.length() > 15) {
+            t_name = t_name.substr(0, 15);
+        }
+        int rc = pthread_setname_np(pthread_self(), t_name.c_str());
+        if(rc != 0) {
+            RCLCPP_WARN(get_node()->get_logger(),"fail to set thread name for imu stream %s", ctx->interface_name.c_str());
+        }
         while(is_running_) {
             
             ImuPublishTask task;
@@ -331,7 +343,7 @@ namespace imu_controller {
             std_msgs::msg::Header header;
             header.stamp.sec = task.timestamp_nanos / 1000000000ULL;
             header.stamp.nanosec = task.timestamp_nanos % 1000000000ULL;
-            header.frame_id = ctx->interface_name.substr(0, ctx->interface_name.find("/"))+"_imu";
+            header.frame_id = ctx->frame_id;
 
             auto imu_msg = std::make_shared<sensor_msgs::msg::Imu>();
             imu_msg->header = header;
@@ -341,7 +353,7 @@ namespace imu_controller {
             imu_msg->orientation.z = 0.0;
             imu_msg->orientation.w = 1.0;
             
-            imu_msg->orientation_covariance[0] = -1.0;
+            // imu_msg->orientation_covariance[0] = -1.0;
 
             imu_msg->linear_acceleration.x = task.accel[0];
             imu_msg->linear_acceleration.y = task.accel[1];
@@ -350,12 +362,12 @@ namespace imu_controller {
             imu_msg->angular_velocity.y = task.gyro[1];
             imu_msg->angular_velocity.z = task.gyro[2];
 
-            imu_msg->linear_acceleration_covariance[0] = 0.01;
-            imu_msg->linear_acceleration_covariance[4] = 0.01;
-            imu_msg->linear_acceleration_covariance[8] = 0.01;
-            imu_msg->angular_velocity_covariance[0] = 0.01;
-            imu_msg->angular_velocity_covariance[4] = 0.01;
-            imu_msg->angular_velocity_covariance[8] = 0.01;
+            // imu_msg->linear_acceleration_covariance[0] = 0.01;
+            // imu_msg->linear_acceleration_covariance[4] = 0.01;
+            // imu_msg->linear_acceleration_covariance[8] = 0.01;
+            // imu_msg->angular_velocity_covariance[0] = 0.01;
+            // imu_msg->angular_velocity_covariance[4] = 0.01;
+            // imu_msg->angular_velocity_covariance[8] = 0.01;
 
             try {
                 // publish imu message

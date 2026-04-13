@@ -182,6 +182,15 @@ namespace lidar_controller {
     }
 
     void LidarController::publish_worker(std::shared_ptr<LidarStreamContext> ctx) {
+        // RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s publish worker started", ctx->interface_name.c_str());
+        std::string t_name = ctx->interface_name;
+        if(t_name.length() > 15) {
+            t_name = t_name.substr(0, 15);
+        }
+        int rc = pthread_setname_np(pthread_self(), t_name.c_str());
+        if(rc != 0) {
+            RCLCPP_WARN(get_node()->get_logger(),"fail to set thread name for lidar stream %s", ctx->interface_name.c_str());
+        }
         RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s publish worker started", ctx->interface_name.c_str());
         while(is_running_) {
             int index = -1;

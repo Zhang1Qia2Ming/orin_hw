@@ -40,13 +40,18 @@ namespace image_controller {
                 image_stream_context->image_undistorted_pub_ = get_node()->create_publisher<sensor_msgs::msg::Image>(
                     image_stream_context->topic_name + "/undistorted", 10);
             }
+            if(image_stream_context->config.publish_compressed) {
+                image_stream_context->compressed_pub_ = get_node()->create_publisher<sensor_msgs::msg::CompressedImage>(
+                    image_stream_context->topic_name + "/compressed", 10);
+            }
 
             image_stream_contexts_.push_back(image_stream_context);
 
-            RCLCPP_INFO(get_node()->get_logger(), "Configured stream: %s; Raw: %s; Undistorted: %s", 
+            RCLCPP_INFO(get_node()->get_logger(), "Configured stream: %s; Raw: %s; Undistorted: %s; Compressed: %s", 
                         interface_name.c_str(), 
                         image_stream_context->config.publish_raw ? "Yes" : "No", 
-                        image_stream_context->config.publish_undistorted ? "Yes" : "No");
+                        image_stream_context->config.publish_undistorted ? "Yes" : "No",
+                        image_stream_context->config.publish_compressed ? "Yes" : "No");
         }
 
         return controller_interface::CallbackReturn::SUCCESS;
@@ -232,13 +237,27 @@ namespace image_controller {
 
             sensor_msgs::msg::Image::SharedPtr raw_img;
             sensor_msgs::msg::Image::SharedPtr undistorted_img;
+            sensor_msgs::msg::CompressedImage::SharedPtr compressed_img;
 
             try {
                 if(ctx->config.publish_raw) {
-                    raw_img = cv_bridge::CvImage(header, encoding, std::move(task.image)).toImageMsg();
+                    raw_img = cv_bridge::CvImage(header, encoding, task.image).toImageMsg();
                 }
                 if(ctx->config.publish_undistorted) {
                     undistorted_img = cv_bridge::CvImage(header, encoding, processed_image).toImageMsg();
+                }
+                if(ctx->config.publish_compressed) {
+
+                    std::vector<uchar> buf;
+                    std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 98};
+                    cv::imencode(".jpg", task.image, buf, params);
+        
+                    // 创建压缩图像消息
+                    compressed_img = std::make_shared<sensor_msgs::msg::CompressedImage>();
+                    compressed_img->header.stamp = header.stamp;
+                    compressed_img->header.frame_id = header.frame_id;
+                    compressed_img->format = "jpeg";
+                    compressed_img->data = std::move(buf);
                 }
             } catch(const cv_bridge::Exception& e) {
                 RCLCPP_ERROR(get_node()->get_logger(), "cv_bridge exception: %s", e.what());
@@ -254,11 +273,17 @@ namespace image_controller {
                 if(ctx->processed_queue_undistorted.size() > 10) {
                     ctx->processed_queue_undistorted.pop_front();
                 }
+                if(ctx->processed_queue_compressed.size() > 10) {
+                    ctx->processed_queue_compressed.pop_front();
+                }
                 if(raw_img) {
                     ctx->processed_queue_raw.push_back(raw_img);
                 }
                 if(undistorted_img) {
                     ctx->processed_queue_undistorted.push_back(undistorted_img);
+                }
+                if(compressed_img) {
+                    ctx->processed_queue_compressed.push_back(compressed_img);
                 }
             }
             ctx->processed_cv_.notify_one();
@@ -271,11 +296,13 @@ namespace image_controller {
             
             sensor_msgs::msg::Image::SharedPtr msg_raw = nullptr;
             sensor_msgs::msg::Image::SharedPtr msg_undistorted = nullptr;
+            sensor_msgs::msg::CompressedImage::SharedPtr msg_compressed = nullptr;
+
             {
                 std::unique_lock<std::mutex> lock(ctx->processor_mutex_);
                 
                 ctx->processed_cv_.wait(lock, [&] {
-                    return !ctx->processed_queue_raw.empty() || !ctx->processed_queue_undistorted.empty() || !is_running_;
+                    return !ctx->processed_queue_raw.empty() || !ctx->processed_queue_undistorted.empty() || !ctx->processed_queue_compressed.empty() || !is_running_;
                 });
                 if(!ctx->processed_queue_raw.empty()) {
                     msg_raw = ctx->processed_queue_raw.front();
@@ -285,8 +312,11 @@ namespace image_controller {
                     msg_undistorted = ctx->processed_queue_undistorted.front();
                     ctx->processed_queue_undistorted.pop_front();
                 }
+                if(!ctx->processed_queue_compressed.empty()) {
+                    msg_compressed = ctx->processed_queue_compressed.front();
+                    ctx->processed_queue_compressed.pop_front();
+                }
             }
-
             try {
                 if(ctx->config.publish_raw && msg_raw) {
 
@@ -302,6 +332,9 @@ namespace image_controller {
 
                 if(ctx->config.publish_undistorted && msg_undistorted) {
                     ctx->image_undistorted_pub_->publish(*msg_undistorted);
+                }
+                if(ctx->config.publish_compressed && msg_compressed) {
+                    ctx->compressed_pub_->publish(*msg_compressed);
                 }
             } catch(const cv_bridge::Exception& e) {
                 RCLCPP_ERROR(get_node()->get_logger(), "pub img failed: %s", e.what());

@@ -38,6 +38,7 @@ test_image_controller:
       "camera_front/image":
         publish_raw: true
         publish_undistorted: true
+        publish_compressed: true
         intrinsic_matrix: [848.0,0.0,424.0,0.0,848.0,400.0,0.0,0.0,1.0]
         distortion: [0.0,0.0,0.0,0.0,0.0]
         extrinsics: [0.0,0.0,0.0,0.0,0.0,0.0]
@@ -61,7 +62,7 @@ test_lidar_controller:
     lidar_config:
       "mid360_front/lidar":
         enable_dynamic_extrinsics: true
-        frame_id: "mid360_front_frame"
+        frame_id: "livox_frame"
 
 
 
