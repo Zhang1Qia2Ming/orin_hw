@@ -465,24 +465,27 @@ void Mid360LidarSensor::ProcessCartesianHighPoint(RawPacket& pkt, std::vector<Li
     {
         // std::lock_guard<std::mutex> lock(points_clouds_mutex_);
         for(uint32_t i = 0; i < pkt.point_num; i++) {
-            if (pkt.extrinsic_enable) {
-                point.x = points[i].x / 1000.0;
-                point.y = points[i].y / 1000.0;
-                point.z = points[i].z / 1000.0;
-            } else {    // todo:move to controller
-                point.x = (points[i].x * config_.RotationMatrix[0][0] +
-                            points[i].y * config_.RotationMatrix[0][1] +
-                            points[i].z * config_.RotationMatrix[0][2] + config_.TranslationVector[0]) /
-                            1000.0;
-                point.y = (points[i].x * config_.RotationMatrix[1][0] +
-                            points[i].y * config_.RotationMatrix[1][1] +
-                            points[i].z * config_.RotationMatrix[1][2] + config_.TranslationVector[1]) /
-                            1000.0;
-                point.z = (points[i].x * config_.RotationMatrix[2][0] +
-                            points[i].y * config_.RotationMatrix[2][1] +
-                            points[i].z * config_.RotationMatrix[2][2] + config_.TranslationVector[2]) /
-                            1000.0;
-            }
+            // if (pkt.extrinsic_enable) {
+            //     point.x = points[i].x / 1000.0;
+            //     point.y = points[i].y / 1000.0;
+            //     point.z = points[i].z / 1000.0;
+            // } else {    // todo:move to controller
+            //     point.x = (points[i].x * config_.RotationMatrix[0][0] +
+            //                 points[i].y * config_.RotationMatrix[0][1] +
+            //                 points[i].z * config_.RotationMatrix[0][2] + config_.TranslationVector[0]) /
+            //                 1000.0;
+            //     point.y = (points[i].x * config_.RotationMatrix[1][0] +
+            //                 points[i].y * config_.RotationMatrix[1][1] +
+            //                 points[i].z * config_.RotationMatrix[1][2] + config_.TranslationVector[1]) /
+            //                 1000.0;
+            //     point.z = (points[i].x * config_.RotationMatrix[2][0] +
+            //                 points[i].y * config_.RotationMatrix[2][1] +
+            //                 points[i].z * config_.RotationMatrix[2][2] + config_.TranslationVector[2]) /
+            //                 1000.0;
+            // }
+            point.x = points[i].x / 1000.0;
+            point.y = points[i].y / 1000.0; 
+            point.z = points[i].z / 1000.0;
             point.intensity = points[i].reflectivity;
             point.line = i % pkt.line_num;
             point.tag = points[i].tag;

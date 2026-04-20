@@ -209,18 +209,26 @@ namespace lidar_controller {
                         // RCLCPP_INFO(get_node()->get_logger(), "current_transform: %f, %f, %f", current_transform.translation().x(), current_transform.translation().y(), current_transform.translation().z());
                     }
                 }
-                FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], 
-                                                ctx->publish_tasks_pool_[index].raw_data,
-                                                do_transform,
-                                                current_transform,
-                                                ctx
-                                            );
-                FillLidarPublishTaskWithPoints(ctx->publish_tasks_pool_[index], 
-                                                ctx->publish_tasks_pool_[index].raw_data,
-                                                do_transform,
-                                                current_transform,
-                                                ctx
-                                            );
+                
+                // FillLidarPublishTaskWithPoints2(ctx->publish_tasks_pool_[index], 
+                //                                 ctx->publish_tasks_pool_[index].raw_data,
+                //                                 do_transform,
+                //                                 current_transform,
+                //                                 ctx
+                //                             );
+                // FillLidarPublishTaskWithPoints(ctx->publish_tasks_pool_[index], 
+                //                                 ctx->publish_tasks_pool_[index].raw_data,
+                //                                 do_transform,
+                //                                 current_transform,
+                //                                 ctx
+                //                             );
+                FillBothMessagesSinglePass(
+                    ctx->publish_tasks_pool_[index], 
+                    ctx->publish_tasks_pool_[index].raw_data,
+                    do_transform,
+                    current_transform,
+                    ctx
+                );
                 
                 // debug for see payload kb and mb
                 // auto& msg = ctx->publish_tasks_pool_[index].point_cloud_msg;
@@ -233,6 +241,8 @@ namespace lidar_controller {
                 // publish point cloud
                 ctx->lidar_point_cloud_pub_->publish(ctx->publish_tasks_pool_[index].point_cloud_msg);
                 ctx->lidar_livox_pub_->publish(ctx->publish_tasks_pool_[index].msg);
+
+                
 
 
                 // static auto last_pub_time = std::chrono::system_clock::now();
@@ -372,6 +382,110 @@ namespace lidar_controller {
             dest_ptr[i].line = points[i].line;
             // 在内存里就地修正时间戳
             dest_ptr[i].offset_time = points[i].offset_time - task.timestamp_nanos;
+        }
+    }
+
+    void LidarController::FillBothMessagesSinglePass(
+        LidarPublishTask& task, 
+        const sensor_base::LidarDataLayout& data,
+        bool do_transform,
+        const Eigen::Affine3f& transform,
+        std::shared_ptr<LidarStreamContext> ctx) 
+    {
+        uint32_t points_num = data.point_num;
+        if(points_num == 0) {
+            return;
+        }
+
+        const auto &raw_points = data.points;
+        task.timestamp_nanos = raw_points[0].offset_time;
+
+        // ================= 1. 准备 CustomMsg =================
+        auto& custom_msg = task.msg;
+        custom_msg.header.stamp = rclcpp::Time(task.timestamp_nanos);
+        custom_msg.header.frame_id = ctx->frame_id;
+        custom_msg.point_num = points_num;
+        custom_msg.lidar_id = data.lidar_id;
+        
+        // 🚨 核心优化 1：彻底抛弃 push_back，使用 resize 一次性分配连续内存！
+        custom_msg.points.resize(points_num); 
+        auto* custom_dest_ptr = custom_msg.points.data();
+
+        // ================= 2. 准备 PointCloud2 =================
+        auto& pc2_msg = task.point_cloud_msg;
+        pc2_msg.header.stamp = rclcpp::Time(task.timestamp_nanos);
+        pc2_msg.header.frame_id = ctx->frame_id; 
+        pc2_msg.width = points_num;
+        pc2_msg.height = 1;
+        pc2_msg.is_bigendian = false;
+        pc2_msg.is_dense = true;
+        pc2_msg.point_step = sizeof(sensor_base::LidarDataPointLayout);
+        pc2_msg.row_step = pc2_msg.point_step * points_num;
+
+        if (pc2_msg.fields.empty()) {
+            auto add_field = [&](const std::string& name, uint32_t offset, uint8_t datatype) {
+                sensor_msgs::msg::PointField f;
+                f.name = name;
+                f.offset = offset;
+                f.datatype = datatype;
+                f.count = 1;
+                pc2_msg.fields.push_back(f);
+            };
+            add_field("x", offsetof(sensor_base::LidarDataPointLayout, x), sensor_msgs::msg::PointField::FLOAT32);
+            add_field("y", offsetof(sensor_base::LidarDataPointLayout, y), sensor_msgs::msg::PointField::FLOAT32);
+            add_field("z", offsetof(sensor_base::LidarDataPointLayout, z), sensor_msgs::msg::PointField::FLOAT32);
+            add_field("intensity", offsetof(sensor_base::LidarDataPointLayout, intensity), sensor_msgs::msg::PointField::FLOAT32); 
+            add_field("tag", offsetof(sensor_base::LidarDataPointLayout, tag), sensor_msgs::msg::PointField::UINT8);
+            add_field("line", offsetof(sensor_base::LidarDataPointLayout, line), sensor_msgs::msg::PointField::UINT8);
+            add_field("offset_time", offsetof(sensor_base::LidarDataPointLayout, offset_time), sensor_msgs::msg::PointField::FLOAT64);
+        }
+
+        // 🚨 核心优化 2：直接操控底层字节流指针！
+        pc2_msg.data.resize(points_num * sizeof(sensor_base::LidarDataPointLayout));
+        auto* pc2_dest_ptr = reinterpret_cast<sensor_base::LidarDataPointLayout*>(pc2_msg.data.data());
+
+        // ================= 3. 单次遍历 (Loop Fusion) =================
+        // 在同一个循环里，把矩阵运算和双份内存拷贝一次性搞定，榨干 CPU L1 Cache！
+        for(uint32_t i = 0; i < points_num; ++i) {
+            float x = raw_points[i].x;
+            float y = raw_points[i].y;
+            float z = raw_points[i].z;
+
+            // 🚨 核心优化 3：24000 个点，仅仅执行【一次】空间坐标系变换！
+            if(do_transform) {
+                Eigen::Vector3f p(x, y, z);
+                p = transform * p;
+                x = p.x();
+                y = p.y();
+                z = p.z();
+            }
+
+            // 公共属性提前读取，减少数组寻址开销
+            float intensity = raw_points[i].intensity;
+            uint8_t tag = raw_points[i].tag;
+            uint8_t line = raw_points[i].line;
+            
+            // 注意你的 custom msg 里时间是 uint32_t 的相对时间
+            uint64_t relative_time_64 = raw_points[i].offset_time - task.timestamp_nanos;
+            uint32_t relative_time_32 = static_cast<uint32_t>(relative_time_64);
+
+            // ---- 写入 CustomMsg 内存区 ----
+            custom_dest_ptr[i].x = x;
+            custom_dest_ptr[i].y = y;
+            custom_dest_ptr[i].z = z;
+            custom_dest_ptr[i].reflectivity = intensity;
+            custom_dest_ptr[i].tag = tag;
+            custom_dest_ptr[i].line = line;
+            custom_dest_ptr[i].offset_time = relative_time_32;
+
+            // ---- 写入 PointCloud2 内存区 ----
+            pc2_dest_ptr[i].x = x;
+            pc2_dest_ptr[i].y = y;
+            pc2_dest_ptr[i].z = z;
+            pc2_dest_ptr[i].intensity = intensity;
+            pc2_dest_ptr[i].tag = tag;
+            pc2_dest_ptr[i].line = line;
+            pc2_dest_ptr[i].offset_time = relative_time_64;
         }
     }
 

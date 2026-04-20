@@ -104,6 +104,7 @@ class LidarController : public controller_interface::ControllerInterface {
         void publish_worker(std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
+        void FillBothMessagesSinglePass(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
 
     protected:
         
