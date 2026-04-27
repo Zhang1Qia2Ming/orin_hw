@@ -14,6 +14,10 @@ lidar_controller:
         type: string
         default_value: "livox_frame"
         description: "Frame ID of the lidar"
+      enable_imu_integration:
+        type: bool
+        default_value: false
+        description: "Enable IMU integration for pose estimation"
       # extrinsics:
       #   type: double_array
       #   default_value: [0.0,0.0,0.0,0.0,0.0,0.0,0.0]

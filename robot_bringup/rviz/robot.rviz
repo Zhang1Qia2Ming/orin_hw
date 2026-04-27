@@ -167,7 +167,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: mid360_front_frame
+    Fixed Frame: livox_frame
     Frame Rate: 30
   Name: root
   Tools:

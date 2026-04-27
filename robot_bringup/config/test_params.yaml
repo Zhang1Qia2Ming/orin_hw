@@ -52,17 +52,18 @@ test_pose_controller:
 test_imu_controller:
   ros__parameters:
     update_rate: 250
-    imu_list: ["t265_front/accel", "t265_front/gyro", "mid360_front/imu"]
+    imu_list: ["t265_front/accel", "t265_front/gyro","mid360_front/imu"]
 
 test_lidar_controller:
   ros__parameters:
-    update_rate: 125
+    update_rate: 250
     lidar_list: ["mid360_front/lidar"]
 
     lidar_config:
       "mid360_front/lidar":
         enable_dynamic_extrinsics: true
         frame_id: "livox_frame"
+        # enable_imu_integration: true
 
 
 

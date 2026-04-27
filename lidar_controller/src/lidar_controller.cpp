@@ -59,6 +59,24 @@ namespace lidar_controller {
                 lidar_stream_context->dynamic_livox_sub_ = nullptr;
             }
 
+            if(params_.lidar_config.lidar_list_map.find(interface_name)->second.enable_imu_integration) {
+                lidar_stream_context->enable_imu_integration = true;
+                std::string imu_interface_name = lidar_stream_context->interface_name;
+                constexpr const char* lidar_suffix = "/lidar";
+                const size_t lidar_suffix_len = std::char_traits<char>::length(lidar_suffix);
+
+                if(imu_interface_name.size() >= lidar_suffix_len &&
+                    imu_interface_name.compare(imu_interface_name.size() - lidar_suffix_len, lidar_suffix_len, lidar_suffix) == 0) {
+                    imu_interface_name.replace(imu_interface_name.size() - lidar_suffix_len, lidar_suffix_len, "/imu");
+                } else {
+                    imu_interface_name += "/imu";
+                }
+                lidar_stream_context->imu_interface_name = imu_interface_name;
+                lidar_stream_context->imu_integrator_ = IMUIntegrator();    
+            } else {
+                lidar_stream_context->enable_imu_integration = false;
+            }
+
             lidar_stream_contexts_.push_back(lidar_stream_context);
         }
         
@@ -77,6 +95,14 @@ namespace lidar_controller {
                 task.raw_data.points.reserve(24000);
             }
             ctx->thread_ = std::thread(&LidarController::publish_worker, this, ctx);
+
+            if(ctx->enable_imu_integration) {
+                for(int i = 0; i < 64; i++) {
+                    ctx->imu_free_queue_.push(i);
+                }
+                ctx->imu_data_pool_.resize(64);
+                ctx->imu_thread_ = std::thread(&LidarController::imu_integration_worker, this, ctx);
+            }
         }
         
         RCLCPP_INFO(get_node()->get_logger(), "Lidar stream activated ! with %zu threads", lidar_stream_contexts_.size());
@@ -88,6 +114,10 @@ namespace lidar_controller {
         config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
         for(const auto& ctx : lidar_stream_contexts_) {
             config.names.push_back(ctx->interface_name);
+            if(ctx->enable_imu_integration) {
+                config.names.push_back(ctx->imu_interface_name);
+                RCLCPP_INFO(get_node()->get_logger(), "IMU integration enabled for interface: %s", ctx->imu_interface_name.c_str());
+            }
         }
         return config;
     }
@@ -106,6 +136,9 @@ namespace lidar_controller {
             if(ctx->thread_.joinable()) {
                 ctx->thread_.join();
             }
+            if(ctx->enable_imu_integration && ctx->imu_thread_.joinable()) {
+                ctx->imu_thread_.join();
+            }
         }
 
         RCLCPP_INFO(get_node()->get_logger(), "Lidar stream deactivated ! with %zu threads", lidar_stream_contexts_.size());
@@ -120,12 +153,17 @@ namespace lidar_controller {
         // deep copy here
         // then ,give index to work queue
         for(size_t i = 0; i < lidar_stream_contexts_.size(); i++) {
+            // std::cout << "imu_interface_name: " << lidar_stream_contexts_[i]->imu_interface_name << std::endl;
             auto& ctx = lidar_stream_contexts_[i];
 
             double ptr_value = 0.0;
             bool found_interface = false;
 
+            double imu_ptr_value = 0.0;
+            bool found_imu_interface = false;
+            
             for (const auto& interface : state_interfaces_) {
+                // std::cout << "Checking interface: " << interface.get_name() << std::endl;
                 if (interface.get_name() == ctx->interface_name) {
                     try {
                         // 🌟 2. 防弹衣：接住 get_value 可能抛出的致命异常！
@@ -139,8 +177,22 @@ namespace lidar_controller {
                         break;
                     }
                 }
-            }
 
+                if (ctx->enable_imu_integration) {
+                    if (interface.get_name() == ctx->imu_interface_name) {
+                        try {
+                            std::cout << "Trying to get IMU pointer value from interface: " << ctx->imu_interface_name << std::endl;
+                            imu_ptr_value = interface.get_value();
+                            found_imu_interface = true;
+                        } catch (const std::exception& e) {
+                            RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 1000,
+                                "[%s] IMU HW interface error: %s", ctx->imu_interface_name.c_str(), e.what());
+                            break;
+                        }
+                    }
+                }
+            }
+            
             if(!found_interface || std::isnan(ptr_value) || ptr_value == 0.0) {
                 continue;
             }
@@ -173,10 +225,46 @@ namespace lidar_controller {
                         RCLCPP_WARN(get_node()->get_logger(), "work_queue is full, drop data");
                     }
                 } else {
-                    RCLCPP_WARN(get_node()->get_logger(), "free_queue is empty, drop data");
+                    // RCLCPP_WARN(get_node()->get_logger(), "free_queue is empty, drop data");
                 }
                 
-            } 
+            }
+
+            if(ctx->enable_imu_integration) {
+                // std::cout << "get here!" << std::endl;
+                // std::cout << imu_ptr_value << " " << found_imu_interface << std::endl;
+                if(!found_imu_interface || std::isnan(imu_ptr_value) || imu_ptr_value == 0.0) {
+                    continue;
+                }
+                std::cout << "get here1!" << std::endl;
+                // update imu data for integration
+                sensor_base::ImuPointerPack* imu_ptr_pack = nullptr;
+                std::memcpy(&imu_ptr_pack, &imu_ptr_value, sizeof(imu_ptr_pack));
+
+                sensor_base::GyroDataLayout* get_gyro_ptr = imu_ptr_pack->gyro_ptr;
+                sensor_base::AccelDataLayout* get_accel_ptr = imu_ptr_pack->accel_ptr;
+
+                if(get_gyro_ptr == nullptr || get_accel_ptr == nullptr) {
+                    continue;
+                }
+                std::cout << "get here2!" << std::endl;
+                if(get_gyro_ptr->header.update_count > ctx->last_imu_update_count) {
+                    ctx->last_imu_update_count = get_gyro_ptr->header.update_count;
+                    int imu_idx = -1;
+                    if(ctx->imu_free_queue_.pop(imu_idx)) {
+                        auto& imu_task = ctx->imu_data_pool_[imu_idx];
+                        imu_task.timestamp_nanos = get_gyro_ptr->header.timestamp_nanos;
+                        imu_task.update_count = get_gyro_ptr->header.update_count;
+                        std::memcpy(imu_task.gyro, get_gyro_ptr->gyro, sizeof(double)*3);
+                        std::memcpy(imu_task.accel, get_accel_ptr->accel, sizeof(double)*3);
+                        // std::cout << "IMU data update_count: " << imu_task.update_count << ", timestamp_nanos: " << imu_task.timestamp_nanos << std::endl;
+                        ctx->imu_work_queue_.push(imu_idx);
+                    }
+                } else {
+                    continue;
+                    RCLCPP_WARN(get_node()->get_logger(), "IMU data is old, skip integration");
+                }
+            }
         }
         return controller_interface::return_type::OK;
     }
@@ -257,6 +345,50 @@ namespace lidar_controller {
             }
         }
         RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s publish worker stopped", ctx->interface_name.c_str());
+    }
+
+
+    void LidarController::imu_integration_worker(std::shared_ptr<LidarStreamContext> ctx) {
+        RCLCPP_INFO(get_node()->get_logger(), "Lidar stream %s IMU integration worker started", ctx->interface_name.c_str());
+        std::string t_name = ctx->interface_name + "_imu_int";
+        if(t_name.length() > 15) {
+            t_name = t_name.substr(0, 15);
+        }
+        int rc = pthread_setname_np(pthread_self(), t_name.c_str());
+        if(rc != 0) {
+            RCLCPP_WARN(get_node()->get_logger(),"fail to set thread name for lidar stream %s imu integration", ctx->interface_name.c_str());
+        }
+
+        while(is_running_) {
+            int index = -1;
+            if(ctx->imu_work_queue_.pop(index)) {
+                // 取出这帧 IMU 数据
+                const auto& imu_data = ctx->imu_data_pool_[index];
+
+                // 提取物理量 (请根据你的 ImuDataLayout 实际变量名修改)
+                double current_time_sec = imu_data.timestamp_nanos / 1e9;
+                Eigen::Vector3d acc(imu_data.accel[0], imu_data.accel[1], imu_data.accel[2]);
+                Eigen::Vector3d gyr(imu_data.gyro[0], imu_data.gyro[1], imu_data.gyro[2]);
+
+                // 🌟 1. 扔给数学引擎进行积分推演
+                ctx->imu_integrator_.Predict(current_time_sec, acc, gyr);
+
+                // 🌟 2. 提取推演出的最新 4x4 位姿矩阵
+                Eigen::Affine3f current_pose = ctx->imu_integrator_.GetCurrentPose();
+
+                // 🌟 3. 无锁压入环形缓冲区，供 Lidar 线程随时查表
+                ctx->pose_buffer_.Push(imu_data.timestamp_nanos, current_pose);
+                // std::cout << "IMU integration worker pushed pose x: " << current_pose.translation().x() << " y: " << current_pose.translation().y() << " z: " << current_pose.translation().z() << " s" << std::endl;
+                RCLCPP_INFO_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000,
+                    "IMU integration worker pushed pose x: %f y: %f z: %f at time: %f s", ctx->interface_name.c_str(), current_pose.translation().x(), current_pose.translation().y(), current_pose.translation().z(), current_time_sec);
+                // 任务完成，交还内存块
+                ctx->imu_free_queue_.push(index);
+            } else {
+                // 无数据时让出 CPU，防止空转打满单核
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+        RCLCPP_INFO(get_node()->get_logger(), "IMU integration worker stopped.");
     }
 
     void LidarController::FillLidarPublishTaskWithPoints(   LidarPublishTask& task, 
@@ -399,6 +531,12 @@ namespace lidar_controller {
 
         const auto &raw_points = data.points;
         task.timestamp_nanos = raw_points[0].offset_time;
+        uint64_t frame_start_ns = task.timestamp_nanos;
+
+        Eigen::Affine3f base_pose_inv = Eigen::Affine3f::Identity();
+        if(ctx->enable_imu_integration) {
+            base_pose_inv = ctx->pose_buffer_.QueryInterpolatedPose(frame_start_ns).inverse();
+        }
 
         // ================= 1. 准备 CustomMsg =================
         auto& custom_msg = task.msg;
@@ -446,18 +584,25 @@ namespace lidar_controller {
 
         // ================= 3. 单次遍历 (Loop Fusion) =================
         // 在同一个循环里，把矩阵运算和双份内存拷贝一次性搞定，榨干 CPU L1 Cache！
+        Eigen::Affine3f current_cached_pose = Eigen::Affine3f::Identity();
+        uint64_t last_query_ts = 0;
+        
         for(uint32_t i = 0; i < points_num; ++i) {
-            float x = raw_points[i].x;
-            float y = raw_points[i].y;
-            float z = raw_points[i].z;
+            Eigen::Vector3f p(raw_points[i].x, raw_points[i].y, raw_points[i].z);
+            
+            if(ctx->enable_imu_integration) {
+                uint64_t point_ts = raw_points[i].offset_time;
+
+                if(point_ts - last_query_ts > 900000) { // 1 ms
+                    current_cached_pose = ctx->pose_buffer_.QueryInterpolatedPose(point_ts);
+                    last_query_ts = point_ts;
+                }
+                p = base_pose_inv * current_cached_pose * p;
+            }
 
             // 🚨 核心优化 3：24000 个点，仅仅执行【一次】空间坐标系变换！
             if(do_transform) {
-                Eigen::Vector3f p(x, y, z);
                 p = transform * p;
-                x = p.x();
-                y = p.y();
-                z = p.z();
             }
 
             // 公共属性提前读取，减少数组寻址开销
@@ -470,24 +615,26 @@ namespace lidar_controller {
             uint32_t relative_time_32 = static_cast<uint32_t>(relative_time_64);
 
             // ---- 写入 CustomMsg 内存区 ----
-            custom_dest_ptr[i].x = x;
-            custom_dest_ptr[i].y = y;
-            custom_dest_ptr[i].z = z;
+            custom_dest_ptr[i].x = p.x();
+            custom_dest_ptr[i].y = p.y();
+            custom_dest_ptr[i].z = p.z();
             custom_dest_ptr[i].reflectivity = intensity;
             custom_dest_ptr[i].tag = tag;
             custom_dest_ptr[i].line = line;
             custom_dest_ptr[i].offset_time = relative_time_32;
 
             // ---- 写入 PointCloud2 内存区 ----
-            pc2_dest_ptr[i].x = x;
-            pc2_dest_ptr[i].y = y;
-            pc2_dest_ptr[i].z = z;
+            pc2_dest_ptr[i].x = p.x();
+            pc2_dest_ptr[i].y = p.y();
+            pc2_dest_ptr[i].z = p.z();
             pc2_dest_ptr[i].intensity = intensity;
             pc2_dest_ptr[i].tag = tag;
             pc2_dest_ptr[i].line = line;
             pc2_dest_ptr[i].offset_time = relative_time_64;
         }
     }
+
+    
 
 
 } // namespace lidar_controller

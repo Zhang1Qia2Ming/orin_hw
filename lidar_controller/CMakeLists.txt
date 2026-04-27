@@ -23,6 +23,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 
 find_package(ament_cmake REQUIRED)
 find_package(backward_ros REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
@@ -42,6 +43,7 @@ target_include_directories(lidar_controller PUBLIC
 )
 target_link_libraries(lidar_controller PUBLIC
   lidar_controller_parameters
+  Eigen3::Eigen
 )
 ament_target_dependencies(lidar_controller PUBLIC ${THIS_PACKAGE_INCLUDE_DEPENDS})
 # Causes the visibility macros to use dllexport rather than dllimport,

@@ -30,6 +30,9 @@
 #include <rclcpp/rclcpp.hpp>
 #include <lidar_controller/lidar_controller_parameters.hpp>
 
+#include "lidar_controller/IMU_integeator.hpp"
+#include "lidar_controller/lock_free_pose_buffer.hpp"
+
 namespace lidar_controller {
 
 using PointCloud2 = sensor_msgs::msg::PointCloud2;
@@ -47,8 +50,16 @@ struct LidarPublishTask {
     sensor_base::LidarDataLayout raw_data;
 };
 
+struct ImuPublishTask {
+    uint64_t timestamp_nanos{0};
+    uint64_t update_count;
+    double gyro[3];
+    double accel[3];
+};
+
 struct LidarStreamContext {
     std::string interface_name;
+    std::string imu_interface_name;
     std::string topic_name;
     std::string frame_id;
 
@@ -69,6 +80,19 @@ struct LidarStreamContext {
     std::vector<LidarPublishTask> publish_tasks_pool_;
     sensor_base::SPSCQueue<int, 8> free_queue_;
     sensor_base::SPSCQueue<int, 8> work_queue_;
+
+    // for IMU integration
+    bool enable_imu_integration{false};
+    uint64_t last_imu_update_count{0};
+    double last_imu_ptr_value{0.0};
+
+    std::thread imu_thread_;
+    std::vector<ImuPublishTask> imu_data_pool_;
+    sensor_base::SPSCQueue<int, 64> imu_free_queue_;
+    sensor_base::SPSCQueue<int, 64> imu_work_queue_;
+
+    IMUIntegrator imu_integrator_;
+    LockFreePoseBuffer pose_buffer_;
 
     rclcpp::Publisher<CustomMsg>::SharedPtr lidar_livox_pub_ = nullptr;
     rclcpp::Publisher<PointCloud2>::SharedPtr lidar_point_cloud_pub_ = nullptr;
@@ -102,6 +126,7 @@ class LidarController : public controller_interface::ControllerInterface {
     public:
             
         void publish_worker(std::shared_ptr<LidarStreamContext> ctx);
+        void imu_integration_worker(std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
         void FillLidarPublishTaskWithPoints2(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
         void FillBothMessagesSinglePass(LidarPublishTask& task, const sensor_base::LidarDataLayout& data, bool do_transform, const Eigen::Affine3f& transform, std::shared_ptr<LidarStreamContext> ctx);
