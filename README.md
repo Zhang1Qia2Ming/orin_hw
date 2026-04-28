@@ -1,6 +1,6 @@
 # orin_Hw
 
-Hardware integration and sensor streaming stack for an Orin-based robot platform using `ros2_control`.
+Hardware integration and sensor streaming stack for an AGX orin-based robot platform using `ros2_control`.
 
 This workspace segment provides:
 - Hardware interface plugins for USB camera, Intel T265, and Livox MID360.
@@ -17,7 +17,7 @@ This workspace segment provides:
 |---|---|
 | `robot_bringup` | Launch files, URDF/xacro, controller manager params, RViz config |
 | `sensor_base` | Shared sensor data layouts and common abstractions |
-| `controller_msg` | Custom message definitions for Livox point cloud stream |
+| `controller_msg` | Custom message definitions for Livox point cloud stream, BUT the actually it still use msgs in livox_ros_driver2 |
 
 ### Sensor hardware layers
 
