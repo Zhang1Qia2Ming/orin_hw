@@ -1,7 +1,6 @@
 #include "mid360_lidar_base/mid360_lidar_sensor.hpp"
 #include "sensor_base/sensor_base.hpp"
 #include "mid360_lidar_base/comm.hpp"
-// #include "mid360_lidar_base/pub_handler.h"
 #include <algorithm>
 
 namespace sensor_base {
