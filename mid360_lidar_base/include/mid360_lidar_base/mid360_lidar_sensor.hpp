@@ -36,6 +36,7 @@ struct Mid360LidarConfig {
     std::string frame_id;
     std::string cmdline_input_bd_code;
     LivoxLidarPointDataType pcl_data_type;
+    std::string path;
 
     // lidar side
     std::string lidar_ip;

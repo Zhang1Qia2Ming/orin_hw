@@ -64,7 +64,8 @@ bool Mid360LidarSensor::open_device()
     double publish_freq = config_.publish_freq; /* Hz */
     int output_type = config_.output_type;
     std::string frame_id = config_.frame_id;
-    std::string path = "/home/test/control_ws/src/orin_Hw/robot_bringup/config/MID360_config.json";
+    std::string path = config_.path;
+    // std::string path = "/home/test/control_ws/src/orin_Hw/robot_bringup/config/MID360_config.json";
     // std::string cmdline_input_bd_code = config_.cmdline_input_bd_code;
 
 

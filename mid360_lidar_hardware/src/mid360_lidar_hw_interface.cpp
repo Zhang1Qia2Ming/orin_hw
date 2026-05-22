@@ -22,6 +22,7 @@ hardware_interface::CallbackReturn Mid360LidarHwInterface::on_init(
     config.publish_freq = std::stod(info.hardware_parameters.find("publish_freq")->second);
     config.output_type = std::stoi(info.hardware_parameters.find("output_type")->second);
     config.frame_id = info.hardware_parameters.find("frame_id")->second;
+    config.path = info.hardware_parameters.find("path")->second;
     config.cmdline_input_bd_code = info.hardware_parameters.find("cmdline_input_bd_code")->second;
     config.pcl_data_type = kLivoxLidarCartesianCoordinateHighData;
     

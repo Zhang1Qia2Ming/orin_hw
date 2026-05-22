@@ -69,6 +69,7 @@
         <param name="frame_id">livox_frame</param>
         <param name="lvx_file_path">/home/livox/livox_test.lvx</param>
         <param name="cmdline_input_bd_code">livox0000000001</param>
+        <param name="path">/home/test/control_ws/src/orin_Hw/robot_bringup/config/MID360_config.json</param>
         <param name="lidar_type">8</param>
         <param name="lidar_ip">192.168.1.168</param>
         <param name="lidar.cmd_data_port">56100</param>
